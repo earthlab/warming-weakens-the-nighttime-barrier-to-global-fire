@@ -6,17 +6,17 @@ library(slider)
 library(purrr)
 library(furrr)
 library(future)
-# library(foreach)
-# library(doParallel)
 
-get_latest_goes <- TRUE
+get_latest_goes <- FALSE
 
-if(get_latest_goes | !file.exists("data/data_output/goes16-filenames.csv")) {
-  source("R/get-af-metadata.R")
+dir.create("data/raw/", recursive = TRUE, showWarnings = FALSE)
+
+if(get_latest_goes | !file.exists("data/out/goes16-filenames.csv")) {
+  source("01_get-goes16/get-af-metadata.R")
 }  
 
 # Read in the GOES metadata acquired from Amazon Earth using get-af-metadata.R script
-goes_af <- readr::read_csv(file = "data/data_output/goes16-filenames.csv", col_types = "ciiiiinicTTTccccc")
+goes_af <- readr::read_csv(file = "data/out/goes16-filenames.csv", col_types = "ciiiiinicTTTccccc")
 
 # Get the flag values that are important using an example .nc file if not done already
 # flag_vals                            flag_meanings
@@ -32,11 +32,11 @@ goes_af <- readr::read_csv(file = "data/data_output/goes16-filenames.csv", col_t
 # 33   temporally_filtered_high_probability_fire_pixel
 # 34 temporally_filtered_medium_probability_fire_pixel
 # 35    temporally_filtered_low_probability_fire_pixel
-if(!file.exists("data/data_output/goes16-flag-mask-meanings.csv")) {
+if(!file.exists("data/out/goes16-flag-mask-meanings.csv")) {
   # Get example .nc file
   ex_aws_path <- goes_af$aws_path[1]
   ex_filename <- goes_af$filename[1]
-  ex_local_path <- "data/data_raw/goes16-example.nc"
+  ex_local_path <- "data/raw/goes16-example.nc"
   
   system2(command = "aws", args = glue::glue("s3 cp s3://noaa-goes16/{ex_aws_path} {ex_local_path} --no-sign-request"))
   
@@ -45,7 +45,7 @@ if(!file.exists("data/data_output/goes16-flag-mask-meanings.csv")) {
   flag_meanings <- nc[["flag_meanings"]] %>% str_split(pattern = " ", simplify = TRUE) %>% as.vector()
   flag_df <- data.frame(flag_vals, flag_meanings)
   
-  readr::write_csv(x = flag_df, file = "data/data_output/goes16-flag-mask-meanings.csv")
+  readr::write_csv(x = flag_df, file = "data/out/goes16-flag-mask-meanings.csv")
 }
 
 fire_flags <- 

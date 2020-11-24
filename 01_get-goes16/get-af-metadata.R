@@ -4,7 +4,7 @@ library(lubridate)
 
 get_latest_goes <- TRUE
 
-if(get_latest_goes | !file.exists("data/data_output/goes16-filenames.csv")) {
+if(get_latest_goes | !file.exists("data/out/goes16-filenames.csv")) {
   # GOES-16 record begins on 2017-05-24
   # List all the GOES-16 files available on AWS
   # Takes 13 seconds for the 2017 data (May to December)
@@ -54,6 +54,6 @@ if(get_latest_goes | !file.exists("data/data_output/goes16-filenames.csv")) {
                                        stringr::str_pad(string = sec, width = 2, side = 'left', pad = '0'))) %>% 
     dplyr::select(data_product, year, month, day, hour, min, sec, doy, filename, scan_start_full, scan_end_full, scan_center_full, scan_start, scan_end, scan_center, aws_path,  aws_path_raw)
   
-  dir.create("data/data_output/", showWarnings = FALSE)
-  readr::write_csv(x = goes_af, file = "data/data_output/goes16-filenames.csv")
+  dir.create("data/out/", showWarnings = FALSE, recursive = TRUE)
+  readr::write_csv(x = goes_af, file = "data/out/goes16-filenames.csv")
 }

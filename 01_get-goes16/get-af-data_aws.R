@@ -16,7 +16,7 @@ if(get_latest_goes | !file.exists("data/data_output/goes16-filenames.csv")) {
 }  
 
 # Read in the GOES metadata acquired from Amazon Earth using get-af-metadata.R script
-goes_af <- readr::read_csv(file = "data/data_output/goes16-filenames.csv", col_types = "ciiiiinicTTTccccc")
+goes_af <- readr::read_csv(file = "data/out/goes16-filenames.csv", col_types = "ciiiiinicTTTccccc")
 
 # Get the flag values that are important using an example .nc file if not done already
 # flag_vals                            flag_meanings

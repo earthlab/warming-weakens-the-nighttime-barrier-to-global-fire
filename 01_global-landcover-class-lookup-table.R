@@ -18,7 +18,7 @@ modis_lc_name <- c("Evergreen Needleleaf Forests",
                     "Permanent Wetlands",
                     "Croplands",
                     "Urban and Built-up Lands",
-                    "Cropland/Natural Vegetation Mosaics",
+                    "Cropland Natural Vegetation Mosaics",
                     "Permanent Snow and Ice",
                     "Barren",
                     "Water Bodies")
@@ -46,4 +46,15 @@ koppen_modis_lookup_table <-
   dplyr::select(koppen_modis_code, koppen_modis_name, koppen_orig_modis_name) %>% 
   dplyr::arrange(koppen_modis_code)
 
+
 write.csv(koppen_modis_lookup_table, file = "data/out/koppen-modis-landcover-lookup-table.csv", row.names = FALSE)
+
+if (file.exists("data/out/zero-goes-af-vpd-thresholds.csv")) {
+  vpd_thresholds <- read.csv("data/out/zero-goes-af-vpd-thresholds.csv")
+}
+
+vpd_thresholds_with_lc <- 
+  vpd_thresholds %>% 
+  dplyr::left_join(koppen_modis_lookup_table, by = c(lc_name = "koppen_modis_name"))
+
+write.csv(vpd_thresholds_with_lc, file = "data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")

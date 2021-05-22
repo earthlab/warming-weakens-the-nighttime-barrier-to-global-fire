@@ -57,4 +57,4 @@ vpd_thresholds_with_lc <-
   vpd_thresholds %>% 
   dplyr::left_join(koppen_modis_lookup_table, by = c(lc_name = "koppen_modis_name"))
 
-write.csv(vpd_thresholds_with_lc, file = "data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
+write.csv(vpd_thresholds_with_lc, file = "data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv", row.names = FALSE)

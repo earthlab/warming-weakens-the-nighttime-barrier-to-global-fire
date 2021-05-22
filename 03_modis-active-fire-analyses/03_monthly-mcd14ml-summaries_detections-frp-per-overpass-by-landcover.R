@@ -8,6 +8,8 @@ library(lubridate)
 
 n_workers <- 8
 
+system2(command = "aws", args = "s3 sync s3://earthlab-mkoontz/MODIS-overpass-counts_0.25_analysis-ready/year-month/ data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/year-month/")
+
 # setup parallelization
 if (.Platform$OS.type == "windows") {
   cl <- parallel::makeCluster(n_workers)

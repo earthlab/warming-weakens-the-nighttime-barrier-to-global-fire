@@ -27,7 +27,7 @@ lc_pixel_area <-
 
 data.table::fwrite(lc_pixel_area, file = "data/out/area-per-lc-pixel.csv")
 area_per_lc <- lc_pixel_area[, .(area_km2 = sum(area_m2) / 1e6), by = .(lc)]
-data.table::fwrite(area_per_lc, file = "data/out/area-per-lc-pixel.csv")
+data.table::fwrite(area_per_lc, file = "data/out/area-per-lc.csv")
 
 # adding landcover per pixel
 # setup parallelization

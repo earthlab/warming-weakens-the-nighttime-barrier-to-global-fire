@@ -15,7 +15,7 @@ lc <- dplyr::left_join(x = lc_area, y = lc_lookup, by = c(lc = "koppen_modis_cod
 afd <- data.table::fread(input = "data/out/mcd14ml_n-frp_month-lc-xy-daynight-summary.csv")
 
 afd[, `:=`(n_per_op = ifelse(dn_detect == "day", yes = n / op_day, no = n / op_night),
-           frp_per_op = ifelse(dn_detect == "day", yes = sum_frp / op_day, no = sum_frp / op_night))]
+           frp_per_op = ifelse(dn_detect == "day", yes = mean_frp / op_day, no = mean_frp / op_night))]
 
 afd <- afd[!(op_night == 0 & dn_detect == "night"), ][!(op_day == 0 & dn_detect == "day"), ]
 

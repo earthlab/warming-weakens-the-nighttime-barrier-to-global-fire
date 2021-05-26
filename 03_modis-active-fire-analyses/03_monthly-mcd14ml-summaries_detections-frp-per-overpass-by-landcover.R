@@ -1,14 +1,25 @@
-# Assign landcovers to each of the active fire detections
+# Summarize active fire detections
 
 library(terra)
 library(data.table)
 library(dplyr)
 library(stringr)
 library(lubridate)
+library(pbapply)
 
 n_workers <- 8
 
 system2(command = "aws", args = "s3 sync s3://earthlab-mkoontz/MODIS-overpass-counts_0.25_analysis-ready/year-month/ data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/year-month/")
+
+# overpass corrections
+overpass_files <- list.files(path = "data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/year-month/", full.names = TRUE)
+
+afd_files <- list.files(path = "data/out/mcd14ml_analysis-ready/", pattern = ".csv", full.names = TRUE)
+
+years <- regmatches(afd_files, 
+                    regexpr(text = afd_files, 
+                            pattern = "\\d+(?=\\.\\w+$)", 
+                            perl = TRUE))
 
 # setup parallelization
 if (.Platform$OS.type == "windows") {
@@ -33,16 +44,6 @@ if (.Platform$OS.type == "windows") {
   })
 } else {
   cl <- n_workers
-  
-  # overpass corrections
-  overpass_files <- list.files(path = "data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/year-month/", full.names = TRUE)
-
-  afd_files <- list.files(path = "data/out/mcd14ml_analysis-ready/", pattern = ".csv", full.names = TRUE)
-  
-  years <- regmatches(afd_files, 
-                      regexpr(text = afd_files, 
-                              pattern = "\\d+(?=\\.\\w+$)", 
-                              perl = TRUE))
 }
 
 monthly_afd_l <-
@@ -59,7 +60,7 @@ monthly_afd_l <-
     year_afd <- data.table::fread(afd_files[i], colClasses = c(acq_time = "character"))
     year_afd[, `:=`(acq_month = str_pad(string = lubridate::month(acq_dttme), width = 2, side = "left", pad = "0"),
                     acq_year = as.character(lubridate::year(acq_dttme)))]
-    year_month_afd <- year_afd[, .(sum_frp = sum(frp), n = .N), by = .(cell_id_lc, lc, x_lc, y_lc, acq_month, acq_year, dn_detect)]
+    year_month_afd <- year_afd[, .(sum_frp = sum(frp), mean_frp = mean(frp), n = .N), by = .(cell_id_lc, lc, x_lc, y_lc, acq_month, acq_year, dn_detect)]
     
     year_month_afd_op_l <- vector(mode = "list", length = length(unique_months))
     
@@ -67,7 +68,7 @@ monthly_afd_l <-
       op_day <- 
         op_this_year[grepl(x = op_this_year, pattern = paste0(years[i], "-", unique_months[j])) & grepl(x = op_this_year, pattern = "day")] %>% 
         terra::rast() %>% 
-        terra::shift(dx = 0, dy = 0.25) %>% 
+        terra::shift(dx = -0.25, dy = 0.25) %>% 
         setNames("op_day") %>% 
         as.data.frame(xy = TRUE, cells = TRUE) %>% 
         dplyr::rename(x_lc = "x", y_lc = "y") %>% 
@@ -78,7 +79,7 @@ monthly_afd_l <-
       op_night <- 
         op_this_year[grepl(x = op_this_year, pattern = paste0(years[i], "-", unique_months[j])) & grepl(x = op_this_year, pattern = "night")] %>% 
         terra::rast() %>% 
-        terra::shift(dx = 0, dy = 0.25) %>% 
+        terra::shift(dx = -0.25, dy = 0.25) %>% 
         setNames("op_night") %>% 
         as.data.frame(xy = TRUE, cells = TRUE) %>% 
         dplyr::rename(x_lc = "x", y_lc = "y") %>% 
@@ -104,4 +105,8 @@ monthly_afd_l <-
 parallel::stopCluster(cl)
 
 monthly_afd <- data.table::rbindlist(monthly_afd_l)
+
+area_per_lc_pixel <- data.table::fread("data/out/area-per-lc-pixel.csv")
+
+monthly_afd_w_area <- area_per_lc_pixel[monthly_afd, on = c("cell_id_lc")]
 data.table::fwrite(x = monthly_afd, file = "data/out/mcd14ml_n-frp_month-lc-xy-daynight-summary.csv")

@@ -106,7 +106,4 @@ parallel::stopCluster(cl)
 
 monthly_afd <- data.table::rbindlist(monthly_afd_l)
 
-area_per_lc_pixel <- data.table::fread("data/out/area-per-lc-pixel.csv")
-
-monthly_afd_w_area <- area_per_lc_pixel[monthly_afd, on = c("cell_id_lc")]
 data.table::fwrite(x = monthly_afd, file = "data/out/mcd14ml_n-frp_month-lc-xy-daynight-summary.csv")

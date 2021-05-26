@@ -14,18 +14,17 @@ afd_files <- list.files(path = "data/out/mcd14ml", pattern = ".csv", full.names 
 
 # landcover areas
 lc <- terra::rast("data/out/lc_koppen_2010_mode.tif") %>% 
-  terra::rotate()
+  terra::rotate() %>%   
+  c(setNames(terra::area(., sum = FALSE), "area_m2"))
 
 lc_pixel_area <-
   lc %>% 
-  terra::area(sum = FALSE) %>%
-  setNames("area_m2") %>% 
-  c(lc) %>% 
-  as.data.frame(xy = TRUE, cell = TRUE) %>% 
+  as.data.frame(xy = TRUE, cell = TRUE, na.rm = FALSE) %>% 
   dplyr::rename(cell_id_lc = "cell", x_lc = "x", y_lc = "y", lc = "lc_koppen_2010_mode") %>% 
   as.data.table()
 
 data.table::fwrite(lc_pixel_area, file = "data/out/area-per-lc-pixel.csv")
+
 area_per_lc <- lc_pixel_area[, .(area_km2 = sum(area_m2) / 1e6), by = .(lc)]
 data.table::fwrite(area_per_lc, file = "data/out/area-per-lc.csv")
 
@@ -42,15 +41,12 @@ if (.Platform$OS.type == "windows") {
     
     # landcover
     lc <- terra::rast("data/out/lc_koppen_2010_mode.tif") %>% 
-      terra::rotate()
-    
+      terra::rotate() %>%   
+      c(setNames(terra::area(., sum = FALSE), "area_m2"))
+
   })
 } else {
   cl <- n_workers
-
-  # landcover
-  lc <- terra::rast("data/out/lc_koppen_2010_mode.tif") %>% 
-    terra::rotate()
 }
 
 pblapply(X = afd_files, FUN = function(x) {

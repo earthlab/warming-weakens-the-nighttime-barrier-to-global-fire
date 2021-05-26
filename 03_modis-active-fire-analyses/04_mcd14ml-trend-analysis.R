@@ -10,7 +10,10 @@ dir.create("figs", showWarnings = FALSE)
 lc_area <- read.csv("data/out/area-per-lc-pixel.csv")
 lc_lookup <- read.csv("data/out/koppen-modis-landcover-lookup-table.csv")
 
-lc <- dplyr::left_join(x = lc_area, y = lc_lookup, by = c(lc = "koppen_modis_code"))
+lc <-
+  lc_area %>% 
+  dplyr::left_join(y = lc_lookup, by = c(lc = "koppen_modis_code")) %>% 
+  as.data.table()
 
 afd <- data.table::fread(input = "data/out/mcd14ml_n-frp_month-lc-xy-daynight-summary.csv")
 
@@ -19,13 +22,20 @@ afd[, `:=`(n_per_op = ifelse(dn_detect == "day", yes = n / op_day, no = n / op_n
 
 afd <- afd[!(op_night == 0 & dn_detect == "night"), ][!(op_day == 0 & dn_detect == "day"), ]
 
+# join active fire data with area information per cell
+
+afd <- lc[afd, on = c("cell_id_lc", "x_lc", "y_lc", "lc")]
+
 afd_summary <- 
-  afd[, .(n_per_op = mean(n_per_op), frp_per_op = mean(frp_per_op)), by = .(acq_year, acq_month, dn_detect, lc)] %>% 
+  afd[, .(total_n_per_op = sum(n_per_op), total_frp_per_op = sum(frp_per_op), 
+          n_per_op_per_px = mean(n_per_op), frp_per_op_per_px = mean(frp_per_op),
+          n_px = .N), 
+      by = .(acq_year, acq_month, dn_detect, lc)] %>% 
   dplyr::left_join(lc) %>% 
   dplyr::mutate(year_month = lubridate::ymd(paste0(acq_year, "-", acq_month, "-", "15"))) %>% 
   tidyr::complete(year_month, nesting(lc, dn_detect, koppen_orig_modis_name), fill = list(n_per_op = 0, frp_per_op = 0)) %>% 
-  dplyr::mutate(n_per_op_per_Mkm2 = (n_per_op / area_km2) * 1e6,
-                frp_per_op_per_Mkm2 = (frp_per_op / area_km2) * 1e6) %>% 
+  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_km2) * 1e6,
+                frp_per_op_per_Mkm2 = (total_frp_per_op / area_km2) * 1e6) %>% 
   dplyr::filter(!is.na(koppen_orig_modis_name), acq_year >= 2003) %>% 
   dplyr::mutate(koppen = substr(x = lc, start = 1, stop = 1),
                 modis = substr(x = lc, start = 2, stop = 3))

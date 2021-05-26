@@ -7,35 +7,57 @@ library(tidyr)
 
 dir.create("figs", showWarnings = FALSE)
 
-lc_area <- read.csv("data/out/area-per-lc-pixel.csv")
-lc_lookup <- read.csv("data/out/koppen-modis-landcover-lookup-table.csv")
+# lc_area_per_px <- read.csv("data/out/area-per-lc-pixel.csv")
+# lc_lookup <- read.csv("data/out/koppen-modis-landcover-lookup-table.csv")
+# lc <-
+#   lc_area_per_px %>% 
+#   dplyr::left_join(y = lc_lookup, by = c(lc = "koppen_modis_code")) %>% 
+#   as.data.table()
 
-lc <-
-  lc_area %>% 
-  dplyr::left_join(y = lc_lookup, by = c(lc = "koppen_modis_code")) %>% 
-  as.data.table()
+lc_lookup_burnable <- read.csv("data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
+
+lc_area <- 
+  read.csv("data/out/area-per-lc.csv") %>% 
+  dplyr::right_join(lc_lookup_burnable, by = c(lc = "koppen_modis_code")) %>% 
+  dplyr::select(lc, area_km2, koppen_orig_modis_name)
 
 afd <- data.table::fread(input = "data/out/mcd14ml_n-frp_month-lc-xy-daynight-summary.csv")
 
-afd[, `:=`(n_per_op = ifelse(dn_detect == "day", yes = n / op_day, no = n / op_night),
-           frp_per_op = ifelse(dn_detect == "day", yes = mean_frp / op_day, no = mean_frp / op_night))]
+afd[, `:=`(n_per_op = ifelse(dn_detect == "day", yes = n / op_day, no = n / op_night))]
 
 afd <- afd[!(op_night == 0 & dn_detect == "night"), ][!(op_day == 0 & dn_detect == "day"), ]
 
-# join active fire data with area information per cell
+# join active fire data with area information per cell and landcovers
+# Only if you need the per-pixel area corrections (we didn't use these)
+# afd <- lc[afd, on = c("cell_id_lc", "x_lc", "y_lc", "lc")]
 
-afd <- lc[afd, on = c("cell_id_lc", "x_lc", "y_lc", "lc")]
+### Summarize the global day/night detections and FRP across MODIS record
+afd_global_summary_no_trend <-
+  afd[acq_year > 2002, .(total_n_per_op = sum(n_per_op), total_n = sum(n),
+                         total_frp = sum(sum_frp)), 
+      by = .(dn_detect)] %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = starts_with("total"))
 
+afd_global_summary_no_trend %>% 
+  mutate(prop_n_per_op_night = total_n_per_op_night / (total_n_per_op_day + total_n_per_op_night),
+         prop_n_night = total_n_night / (total_n_night + total_n_day)) %>% 
+  dplyr::select(prop_n_per_op_night, prop_n_night)
+
+
+### Summarize the trends in day/night detections and FRP through MODIS record
 afd_summary <- 
-  afd[, .(total_n_per_op = sum(n_per_op), total_frp_per_op = sum(frp_per_op), 
-          n_per_op_per_px = mean(n_per_op), frp_per_op_per_px = mean(frp_per_op),
-          n_px = .N), 
+  afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), 
+          n_per_op_per_px = mean(n_per_op),
+          total_frp = sum(sum_frp), 
+          n_px = .N,
+          n_op_day = sum(op_day), n_op_night = sum(op_night)), 
       by = .(acq_year, acq_month, dn_detect, lc)] %>% 
-  dplyr::left_join(lc) %>% 
+  left_join(lc_area) %>% 
+  dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
+                mean_frp_per_px = total_frp / n_px) %>% 
   dplyr::mutate(year_month = lubridate::ymd(paste0(acq_year, "-", acq_month, "-", "15"))) %>% 
   tidyr::complete(year_month, nesting(lc, dn_detect, koppen_orig_modis_name), fill = list(n_per_op = 0, frp_per_op = 0)) %>% 
-  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_km2) * 1e6,
-                frp_per_op_per_Mkm2 = (total_frp_per_op / area_km2) * 1e6) %>% 
+  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_km2) * 1e6) %>% 
   dplyr::filter(!is.na(koppen_orig_modis_name), acq_year >= 2003) %>% 
   dplyr::mutate(koppen = substr(x = lc, start = 1, stop = 1),
                 modis = substr(x = lc, start = 2, stop = 3))
@@ -43,31 +65,46 @@ afd_summary <-
 afd_summary
 
 afd_global_summary <-
-  afd[, .(n_per_op = mean(n_per_op), frp_per_op = mean(frp_per_op)), by = .(acq_year, acq_month, dn_detect)] %>% 
+  afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), n_per_op_per_px = mean(n_per_op),
+          total_frp = sum(sum_frp),
+          n_px = .N,
+          n_op_day = sum(op_day), n_op_night = sum(op_night)), 
+      by = .(acq_year, acq_month, dn_detect)] %>% 
+  dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
+                mean_frp_per_px = total_frp / n_px) %>% 
   dplyr::mutate(year_month = lubridate::ymd(paste0(acq_year, "-", acq_month, "-", "15"))) %>% 
   tidyr::complete(year_month, nesting(dn_detect), fill = list(n_per_op = 0, frp_per_op = 0)) %>% 
-  dplyr::mutate(n_per_op_per_Mkm2 = (n_per_op / sum(lc$area_km2)) * 1e6,
-                frp_per_op_per_Mkm2 = (frp_per_op / sum(lc$area_km2)) * 1e6) %>% 
+  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / sum(lc_area$area_km2)) * 1e6) %>% 
   dplyr::filter(acq_year >= 2003)
 
 afd_global_summary_wide <-
   afd_global_summary %>% 
-  tidyr::pivot_wider(names_from = "dn_detect", values_from = c("n_per_op", "frp_per_op"), id_cols = c("year_month", "acq_year", "acq_month")) %>% 
-  dplyr::mutate(prop_n_night = n_per_op_night  / (n_per_op_night + n_per_op_day))
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("year_month", "acq_year", "acq_month")) %>% 
+  dplyr::mutate(prop_n_night = night  / (night + day))
 
 global_n_gg <-
-  ggplot(afd_global_summary, aes(x = year_month, y = n_per_op, color = dn_detect)) +
+  ggplot(afd_global_summary, aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() +
   geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Number of detections per overpass per million square km",
+       color = "Day/night")
+
+global_n_gg
 
 ggsave(filename = "figs/mcd14ml_n-trend_global.png", plot = global_n_gg)
 
 global_frp_gg <-
-  ggplot(afd_global_summary, aes(x = year_month, y = frp_per_op, color = dn_detect)) +
+  ggplot(afd_global_summary, aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() +
   geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Mean FRP per detection (MW)",
+       color = "Day/night")
+
+global_frp_gg
 
 ggsave(filename = "figs/mcd14ml_frp-trend_global.png", plot = global_frp_gg)
 
@@ -82,13 +119,6 @@ global_prop_n_gg <-
 global_prop_n_gg
 
 ggsave(filename = "figs/mcd14ml_prop-n-trend_global.png", plot = global_prop_n_gg)
-# number of detections
-# all
-# ggplot(afd_summary, aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
-#   geom_line() + 
-#   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
-#   geom_smooth() +
-#   theme_bw()
 
 # koppen 1 Tropical
 tropical_n_gg <-
@@ -96,7 +126,10 @@ tropical_n_gg <-
   geom_line() + 
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Number of detections per overpass per million square km",
+       color = "Day/night")
 
 # koppen 2 Arid
 arid_n_gg <-
@@ -104,7 +137,10 @@ arid_n_gg <-
   geom_line() + 
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Number of detections per overpass per million square km",
+       color = "Day/night")
 
 # koppen 3 Temperate
 temperate_n_gg <- 
@@ -112,29 +148,26 @@ temperate_n_gg <-
   geom_line() + 
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Number of detections per overpass per million square km",
+       color = "Day/night")
 
 # koppen 4 Cold
 cold_n_gg <-
-ggplot(dplyr::filter(afd_summary, koppen == 4), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
+  ggplot(dplyr::filter(afd_summary, koppen == 4), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() + 
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
-  theme_bw()
-
-# koppen 5 Polar
-polar_n_gg <-
-ggplot(dplyr::filter(afd_summary, koppen == 5), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
-  geom_line() + 
-  facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
-  geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Number of detections per overpass per million square km",
+       color = "Day/night")
 
 ggsave(filename = "figs/mcd14ml_n-trend_tropical.png", plot = tropical_n_gg)
 ggsave(filename = "figs/mcd14ml_n-trend_arid.png", plot = arid_n_gg)
 ggsave(filename = "figs/mcd14ml_n-trend_temperate.png", plot = temperate_n_gg)
 ggsave(filename = "figs/mcd14ml_n-trend_cold.png", plot = cold_n_gg)
-ggsave(filename = "figs/mcd14ml_n-trend_polar.png", plot = polar_n_gg)
 
 # FRP
 # all
@@ -146,47 +179,49 @@ ggsave(filename = "figs/mcd14ml_n-trend_polar.png", plot = polar_n_gg)
 
 # koppen 1 Tropical
 tropical_frp_gg <-
-  ggplot(dplyr::filter(afd_summary, koppen == 1), aes(x = year_month, y = frp_per_op_per_Mkm2, color = dn_detect)) +
+  ggplot(dplyr::filter(afd_summary, koppen == 1), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Mean FRP per detection (MW)",
+       color = "Day/night")
 
 # koppen 2 Arid
 arid_frp_gg <-
-  ggplot(dplyr::filter(afd_summary, koppen == 2), aes(x = year_month, y = frp_per_op_per_Mkm2, color = dn_detect)) +
+  ggplot(dplyr::filter(afd_summary, koppen == 2), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Mean FRP per detection (MW)",
+       color = "Day/night")
 
 # koppen 3 Temperate
 temperate_frp_gg <-
-  ggplot(dplyr::filter(afd_summary, koppen == 3), aes(x = year_month, y = frp_per_op_per_Mkm2, color = dn_detect)) +
+  ggplot(dplyr::filter(afd_summary, koppen == 3), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Mean FRP per detection (MW)",
+       color = "Day/night")
 
 # koppen 4 Cold
 cold_frp_gg <-
-  ggplot(dplyr::filter(afd_summary, koppen == 4), aes(x = year_month, y = frp_per_op_per_Mkm2, color = dn_detect)) +
+  ggplot(dplyr::filter(afd_summary, koppen == 4), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
-  theme_bw()
-
-# koppen 5 Polar
-polar_frp_gg <-
-  ggplot(dplyr::filter(afd_summary, koppen == 5), aes(x = year_month, y = frp_per_op_per_Mkm2, color = dn_detect)) +
-  geom_line() + 
-  facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
-  geom_smooth() +
-  theme_bw()
-
+  theme_bw() +
+  labs(x = "Date (monthly increments)",
+       y = "Mean FRP per detection (MW)",
+       color = "Day/night")
 
 ggsave(filename = "figs/mcd14ml_frp-trend_tropical.png", plot = tropical_frp_gg)
 ggsave(filename = "figs/mcd14ml_frp-trend_arid.png", plot = arid_frp_gg)
 ggsave(filename = "figs/mcd14ml_frp-trend_temperate.png", plot = temperate_frp_gg)
 ggsave(filename = "figs/mcd14ml_frp-trend_cold.png", plot = cold_frp_gg)
-ggsave(filename = "figs/mcd14ml_frp-trend_polar.png", plot = polar_frp_gg)

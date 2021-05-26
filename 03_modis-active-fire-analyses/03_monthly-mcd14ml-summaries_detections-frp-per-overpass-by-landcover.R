@@ -60,6 +60,8 @@ monthly_afd_l <-
     year_afd <- data.table::fread(afd_files[i], colClasses = c(acq_time = "character"))
     year_afd[, `:=`(acq_month = str_pad(string = lubridate::month(acq_dttme), width = 2, side = "left", pad = "0"),
                     acq_year = as.character(lubridate::year(acq_dttme)))]
+    year_afd <- year_afd[confidence >= 10, ]
+    
     year_month_afd <- year_afd[, .(sum_frp = sum(frp), mean_frp = mean(frp), n = .N), by = .(cell_id_lc, lc, x_lc, y_lc, acq_month, acq_year, dn_detect)]
     
     year_month_afd_op_l <- vector(mode = "list", length = length(unique_months))

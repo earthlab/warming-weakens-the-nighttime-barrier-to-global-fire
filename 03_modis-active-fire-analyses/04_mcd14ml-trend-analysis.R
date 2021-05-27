@@ -4,6 +4,7 @@ library(data.table)
 library(dplyr)
 library(ggplot2)
 library(tidyr)
+library(mgcv)
 
 dir.create("figs", showWarnings = FALSE)
 
@@ -32,17 +33,39 @@ afd <- afd[!(op_night == 0 & dn_detect == "night"), ][!(op_day == 0 & dn_detect 
 # afd <- lc[afd, on = c("cell_id_lc", "x_lc", "y_lc", "lc")]
 
 ### Summarize the global day/night detections and FRP across MODIS record
+# on an annual + monthly basis
 afd_global_summary_no_trend <-
   afd[acq_year > 2002, .(total_n_per_op = sum(n_per_op), total_n = sum(n),
                          total_frp = sum(sum_frp)), 
-      by = .(dn_detect)] %>% 
-  tidyr::pivot_wider(names_from = "dn_detect", values_from = starts_with("total"))
-
-afd_global_summary_no_trend %>% 
+      by = .(dn_detect, acq_year, acq_month)] %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = starts_with("total")) %>% 
   mutate(prop_n_per_op_night = total_n_per_op_night / (total_n_per_op_day + total_n_per_op_night),
          prop_n_night = total_n_night / (total_n_night + total_n_day)) %>% 
-  dplyr::select(prop_n_per_op_night, prop_n_night)
+  dplyr::select(prop_n_per_op_night, prop_n_night) %>% 
+  summarize(mean_prop = mean(prop_n_per_op_night),
+            sd_prop = sd(prop_n_per_op_night))
 
+# Just annual basis
+afd[acq_year > 2002, .(total_n_per_op = sum(n_per_op), total_n = sum(n),
+                       total_frp = sum(sum_frp)), 
+    by = .(dn_detect, acq_year)] %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = starts_with("total")) %>% 
+  mutate(prop_n_per_op_night = total_n_per_op_night / (total_n_per_op_day + total_n_per_op_night),
+         prop_n_night = total_n_night / (total_n_night + total_n_day)) %>% 
+  dplyr::select(prop_n_per_op_night, prop_n_night) %>% 
+  summarize(mean_prop = mean(prop_n_per_op_night),
+            sd_prop = sd(prop_n_per_op_night))
+
+# across the whole record (no standard deviation or range to speak of)
+afd[acq_year > 2002, .(total_n_per_op = sum(n_per_op), total_n = sum(n),
+                       total_frp = sum(sum_frp)), 
+    by = .(dn_detect)] %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = starts_with("total")) %>% 
+  mutate(prop_n_per_op_night = total_n_per_op_night / (total_n_per_op_day + total_n_per_op_night),
+         prop_n_night = total_n_night / (total_n_night + total_n_day)) %>% 
+  dplyr::select(prop_n_per_op_night, prop_n_night) %>% 
+  summarize(mean_prop = mean(prop_n_per_op_night),
+            sd_prop = sd(prop_n_per_op_night))
 
 ### Summarize the trends in day/night detections and FRP through MODIS record
 afd_summary <- 
@@ -225,3 +248,18 @@ ggsave(filename = "figs/mcd14ml_frp-trend_tropical.png", plot = tropical_frp_gg)
 ggsave(filename = "figs/mcd14ml_frp-trend_arid.png", plot = arid_frp_gg)
 ggsave(filename = "figs/mcd14ml_frp-trend_temperate.png", plot = temperate_frp_gg)
 ggsave(filename = "figs/mcd14ml_frp-trend_cold.png", plot = cold_frp_gg)
+
+
+### Formal analysis
+gam_data <- 
+  afd_global_summary_wide %>% 
+    dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
+
+# https://fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
+m <- gamm(prop_n_night ~ s(acq_month, bs = "cc", k = 12) + s(time), data = gam_data)
+plot(m$gam)
+
+layout(matrix(1:2, ncol = 2))
+acf(resid(m$lme), lag.max = 36, main = "ACF")
+pacf(resid(m$lme), lag.max = 36, main = "pACF")
+layout(1)

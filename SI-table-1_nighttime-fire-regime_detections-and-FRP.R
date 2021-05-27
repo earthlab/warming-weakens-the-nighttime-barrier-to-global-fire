@@ -4,22 +4,17 @@ library(tidyverse)
 library(raster)
 library(data.table)
 library(viridis)
+library(terra)
 
 
 # gridded MCD14ML data ---------------------------------------------------------
 
-if(length(list.files("data/data_output/CSV_nocorn_grid_0_25_degree_vars/AFC_num/")) == 0) {
-  download.file(url = "http://earthlab-jmcglinchy.s3-us-west-2.amazonaws.com/night_fire/gridded/vars_CSV_nocorn.zip", 
-                destfile = "data/data_output/vars_CSV_nocorn.zip", 
-                method = "curl")
-  
-  unzip(zipfile = "data/data_output/vars_CSV_nocorn.zip", exdir = "data/data_output/")
-}
+system2(command = "aws", args = "s3 sync s3://earthlab-jmcglinchy/night_fire/gridded/vars_refresh_may2021/CSV_nocorn_grid_0_25_degree_vars/ data/out/CSV_nocorn_grid_0_25_degree_vars")
 
 
 # fire detection count ----------------------------------------------------
 
-afd_files <- list.files("data/data_output/CSV_nocorn_grid_0_25_degree_vars/AFC_num/") %>% 
+afd_files <- list.files("data/out/CSV_nocorn_grid_0_25_degree_vars/AFC_num/") %>% 
   tibble::enframe(name = NULL) %>% 
   setNames("filename") %>% 
   tidyr::separate(col = filename, into = c("satellite", "daynight", "afc", "datatype", "month", "year", "fileextension"), remove = FALSE) %>% 
@@ -29,47 +24,47 @@ afd_files <- list.files("data/data_output/CSV_nocorn_grid_0_25_degree_vars/AFC_n
   dplyr::filter(year >= 2003)
 
 read_and_stack_rasters <-  function(filename, daynight, month, year) {
-  r <- raster::raster(paste0("data/data_output/CSV_nocorn_grid_0_25_degree_vars/AFC_num/", filename))
+  r <- terra::rast(paste0("data/out/CSV_nocorn_grid_0_25_degree_vars/AFC_num/", filename))
   return(r)
 }
 
-# Stack all 192 year-month rasters representing total detections
+# Stack all 216 year-month rasters representing total detections
 # and sum them
-if (!file.exists("data/data_output/total-detections_day_0.25.tif")) {
+if (!file.exists("data/out/total-detections_day_0.25.tif")) {
   afd_day <-
     afd_files %>% 
     dplyr::filter(daynight == "day") %>% 
     purrr::pmap(.f = read_and_stack_rasters) %>% 
-    do.call("stack", .) %>% 
-    raster::calc(fun = sum)
+    do.call("c", .) %>% 
+    sum()
   
   # Line up the rasters with the GLDAS landcover raster
-  afd_day <- raster::shift(x = afd_day, dx = -0.125, dy = 0.125)
+  afd_day <- terra::shift(x = afd_day, dx = -0.25, dy = 0.25)
   
-  raster::writeRaster(x = afd_day, filename = "data/data_output/total-detections_day_0.25.tif", overwrite = TRUE)
+  terra::writeRaster(x = afd_day, filename = "data/out/total-detections_day_0.25.tif", overwrite = TRUE)
 }
 
 # Repeat for night detections rasters
-if (!file.exists("data/data_output/total-detections_night_0.25.tif")) {
+if (!file.exists("data/out/total-detections_night_0.25.tif")) {
   afd_night <-
     afd_files %>% 
     dplyr::filter(daynight == "night") %>% 
     purrr::pmap(.f = read_and_stack_rasters) %>% 
-    do.call("stack", .) %>% 
-    raster::calc(fun = sum)
+    do.call("c", .) %>% 
+    sum()
   
   # Line up the rasters with the GLDAS landcover raster
-  afd_night <- raster::shift(x = afd_night, dx = -0.125, dy = 0.125)
+  afd_night <- raster::shift(x = afd_night, dx = -0.25, dy = 0.25)
   
-  raster::writeRaster(x = afd_night, filename = "data/data_output/total-detections_night_0.25.tif", overwrite = TRUE)
+  raster::writeRaster(x = afd_night, filename = "data/out/total-detections_night_0.25.tif", overwrite = TRUE)
 }
 
-afd_day <- raster::raster("data/data_output/total-detections_day_0.25.tif")
-afd_night <- raster::raster("data/data_output/total-detections_night_0.25.tif")
+afd_day <- raster::raster("data/out/total-detections_day_0.25.tif")
+afd_night <- raster::raster("data/out/total-detections_night_0.25.tif")
 
 # FRP data ----------------------------------------------------------------
 
-frp_files <- list.files("data/data_output/CSV_nocorn_grid_0_25_degree_vars/FRP_total/") %>% 
+frp_files <- list.files("data/out/CSV_nocorn_grid_0_25_degree_vars/FRP_total/") %>% 
   tibble::enframe(name = NULL) %>% 
   setNames("filename") %>% 
   tidyr::separate(col = filename, into = c("satellite", "daynight", "afc", "datatype", "month", "year", "fileextension"), remove = FALSE) %>% 
@@ -79,64 +74,54 @@ frp_files <- list.files("data/data_output/CSV_nocorn_grid_0_25_degree_vars/FRP_t
   dplyr::filter(year >= 2003)
 
 read_and_stack_rasters <-  function(filename, daynight, month, year) {
-  r <- raster::raster(paste0("data/data_output/CSV_nocorn_grid_0_25_degree_vars/FRP_total/", filename))
+  r <- terra::rast(paste0("data/out/CSV_nocorn_grid_0_25_degree_vars/FRP_total/", filename))
   return(r)
 }
 
-if(!file.exists("data/data_output/frp_day_0.25.tif")) {
-  # Stack all 192 year-month rasters representing total FRP
+if(!file.exists("data/out/frp_day_0.25.tif")) {
+  # Stack all 216 year-month rasters representing total FRP
   # and then sum them
   frp_day <-
     frp_files %>% 
     dplyr::filter(daynight == "day") %>% 
     purrr::pmap(.f = read_and_stack_rasters) %>% 
-    do.call("stack", .) %>% 
-    raster::calc(fun = sum)
+    do.call("c", .) %>% 
+    sum()
   
   # Line up the rasters with the GLDAS landcover raster
-  frp_day <- raster::shift(x = frp_day, dx = -0.125, dy = 0.125)
+  frp_day <- raster::shift(x = frp_day, dx = -0.25, dy = 0.25)
   
-  raster::writeRaster(x = frp_day, filename = "data/data_output/frp_day_0.25.tif", overwrite = TRUE)
+  raster::writeRaster(x = frp_day, filename = "data/out/frp_day_0.25.tif", overwrite = TRUE)
 }
 
-if(!file.exists("data/data_output/frp_night_0.25.tif")) {
+if(!file.exists("data/out/frp_night_0.25.tif")) {
   # Repeat for the night rasters
   frp_night <-
     frp_files %>% 
     dplyr::filter(daynight == "night") %>% 
     purrr::pmap(.f = read_and_stack_rasters) %>% 
-    do.call("stack", .) %>% 
-    raster::calc(fun = sum)
+    do.call("c", .) %>% 
+    sum()
   
   # Line up the rasters with the GLDAS landcover raster
-  frp_night <- raster::shift(x = frp_night, dx = -0.125, dy = 0.125)
+  frp_night <- raster::shift(x = frp_night, dx = -0.25, dy = 0.25)
   
-  raster::writeRaster(x = frp_night, filename = "data/data_output/frp_night_0.25.tif", overwrite = TRUE)
+  terra::writeRaster(x = frp_night, filename = "data/out/frp_night_0.25.tif", overwrite = TRUE)
 }
 
-frp_day <- raster::raster("data/data_output/frp_day_0.25.tif")
-frp_night <- raster::raster("data/data_output/frp_night_0.25.tif")
+frp_day <- raster::raster("data/out/frp_day_0.25.tif")
+frp_night <- raster::raster("data/out/frp_night_0.25.tif")
 
 # overpass count ----------------------------------------------------------
 
-if(!file.exists("data/data_output/2003-2018_day_overpass-count.tif")) {
-  download.file(url = "https://earthlab-mkoontz.s3-us-west-2.amazonaws.com/MODIS-overpass-counts_0.25_analysis-ready/2003-2018/2003-2018_day_overpass-count.tif",
-                destfile = "data/data_output/2003-2018_day_overpass-count.tif",
-                method = "curl")
-}
-
-if(!file.exists("data/data_output/2003-2018_night_overpass-count.tif")) {
-  download.file(url = "https://earthlab-mkoontz.s3-us-west-2.amazonaws.com/MODIS-overpass-counts_0.25_analysis-ready/2003-2018/2003-2018_night_overpass-count.tif",
-                destfile = "data/data_output/2003-2018_night_overpass-count.tif",
-                method = "curl")
-}
+system2(command = "aws", args = "s3 sync s3://earthlab-mkoontz/MODIS-overpass-counts_0.25_analysis-ready data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready")
 
 # Represents count of all day (or night) overpasses between 2003 and 2018
-day_overpass_count <- raster::raster("data/data_output/2003-2018_day_overpass-count.tif")
-night_overpass_count <- raster::raster("data/data_output/2003-2018_night_overpass-count.tif")
+day_overpass_count <- terra::rast("data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/2003-2020/2003-2020_day_overpass-count.tif")
+night_overpass_count <- terra::rast("data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/2003-2020/2003-2020_night_overpass-count.tif")
 
-day_overpass_count <- raster::shift(day_overpass_count, dx = -0.125, dy = 0.125)
-night_overpass_count <- raster::shift(night_overpass_count, dx = -0.125, dy = 0.125)
+day_overpass_count <- raster::shift(day_overpass_count, dx = -0.25, dy = 0.25)
+night_overpass_count <- raster::shift(night_overpass_count, dx = -0.25, dy = 0.25)
 
 # landcover ---------------------------------------------------------------
 

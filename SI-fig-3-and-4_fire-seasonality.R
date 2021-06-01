@@ -1,9 +1,9 @@
 # define the day and nighttime fire season by landcover type
 
 
-library(tidyverse)
+library(dplyr)
 library(sf)
-library(raster)
+library(terra)
 library(data.table)
 library(cowplot)
 library(ncdf4)
@@ -11,45 +11,45 @@ library(rasterDT)
 library(slider)
 # remotes::install_github("wilkelab/ggtext")
 library(ggtext)
+library(stringr)
+library(purrr)
+library(lubridate)
+library(ggplot2)
+# library(lutz)
+
+# gridded MCD14ML data ---------------------------------------------------------
+system2(command = "aws", args = "s3 sync s3://earthlab-jmcglinchy/night_fire/gridded/vars_refresh_may2021/CSV_nocorn_grid_0_25_degree_vars/ data/out/CSV_nocorn_grid_0_25_degree_vars")
 
 # get a raster template ---------------------------------------------------
-raster_template <- raster::raster("data/data_raw/grid_0_25_degree_vars_modis_D_AFC_num_April_2001.tif")
-raster_template <- raster::shift(x = raster_template, dx = -0.125, dy = 0.125)
+raster_template <- terra::rast("data/out/CSV_nocorn_grid_0_25_degree_vars/AFC_num/modis_D_AFC_num_April_2001.tif")
+raster_template <- terra::shift(x = raster_template, dx = -0.25, dy = 0.25)
 # get overpass correction data --------------------------------------------
 
-if(!dir.exists("data/data_output/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2018/")) {
-  dir.create("data/data_output/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2018/", recursive = TRUE)
-}
+system2(command = "aws", args = "s3 sync s3://earthlab-mkoontz/MODIS-overpass-counts_0.25_analysis-ready data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready")
 
 months <- str_pad(string = as.character(1:12), width = 2, side = "left", pad = "0")
 
 all_rasters <-
-  tidyr::crossing(months, daynight = c("day", "night")) %>% 
-  dplyr::mutate(s3_path = paste0("https://earthlab-mkoontz.s3-us-west-2.amazonaws.com/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2018/", months, "_2003-2018_", daynight, "_overpass-count.tif"),
-                local_path = paste0("data/data_output/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2018/", months, "_2003-2018_", daynight, "_overpass-count.tif"))
+  tidyr::crossing(months, dn_detect = c("day", "night")) %>%
+  dplyr::mutate(s3_path = paste0("https://earthlab-mkoontz.s3-us-west-2.amazonaws.com/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2020/", months, "_2003-2020_", dn_detect, "_overpass-count.tif"),
+                local_path = paste0("data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2020/", months, "_2003-2020_", dn_detect, "_overpass-count.tif"))
 
-local_files <- list.files("data/data_output/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2018/", full.names = TRUE)
+# local_files <- list.files("data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2020/", full.names = TRUE)
 
-to_download <-
-  all_rasters %>% 
-  dplyr::filter(!(local_path %in% local_files))
+dir.create("data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2020_DT/")
 
-purrr::map2(.x = to_download$s3_path, .y = to_download$local_path, .f = function(x, y) {download.file(url = x, destfile = y, method = "curl")})
-
-dir.create("data/data_output/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2018_DT/")
-
-if (length(list.files("data/data_output/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2018_DT/", full.names = TRUE)) == 0) {
+if (length(list.files("data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2020_DT/", full.names = TRUE)) == 0) {
   all_overpasses <-
     all_rasters %>% 
-    purrr::pmap(.f = function(months, daynight, s3_path, local_path) {
-      r <- raster::raster(local_path)
-      r <- raster::shift(x = r, dx = -0.125, dy = 0.125)
+    purrr::pmap(.f = function(months, dn_detect, s3_path, local_path) {
+      r <- terra::rast(local_path)
+      r <- terra::shift(x = r, dx = -0.25, dy = 0.25)
       r_df <- as.data.frame(r, xy = TRUE)
       DT <- as.data.table(r_df) %>% setNames(c("lon", "lat", "overpass_count"))
-      DT[, `:=`(daynight = daynight,
+      DT[, `:=`(dn_detect = dn_detect,
                 month = months)]
       
-      dt_path <- paste0("data/data_output/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2018_DT/", months, "_2003-2018_", daynight, "_overpass-count_DT.csv")
+      dt_path <- paste0("data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2020_DT/", months, "_2003-2020_", dn_detect, "_overpass-count_DT.csv")
       data.table::fwrite(x = DT, file = dt_path)
       print(dt_path)
       return(DT)
@@ -57,13 +57,12 @@ if (length(list.files("data/data_output/MODIS-overpass-counts_0.25_analysis-read
 }
 
 all_overpasses <-
-  list.files("data/data_output/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2018_DT/", full.names = TRUE) %>% 
-  lapply(fread)
+  list.files("data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/month_2003-2020_DT/", full.names = TRUE) %>% 
+  lapply(fread) %>% 
+  data.table::rbindlist()
 
-all_overpasses <- data.table::rbindlist(all_overpasses)
 all_overpasses[, month := str_pad(string = month, width = 2, side = "left", pad = "0")]
-data.table::setkeyv(all_overpasses, c("daynight", "month", "lon", "lat"))
-
+data.table::setkeyv(all_overpasses, c("dn_detect", "month", "lon", "lat"))
 
 # table of the first of each month in DOY ---------------------------------
 
@@ -80,120 +79,134 @@ first_of_months <-
 
 # get MCD14ML active fire detections --------------------------------------
 
-years <- 2003:2018
+years <- 2003:2020
 
 afd <- lapply(X = years, 
               FUN = function(this_year) {
-                fread(paste0("data/data_output/mcd14ml_solar-elevation-angle/mcd14ml_solar-elevation-angle_", this_year, ".csv"))
+                fread(paste0("data/out/mcd14ml_analysis-ready/mcd14ml_c006_v03_", this_year, ".csv"), colClasses = c(acq_time = "character"))
               })
 
 afd <- data.table::rbindlist(afd)
 
-afd[, `:=`(lat_round = round((LATITUDE + 0.125) * 4) / 4 - 0.125,
-           lon_round = round((LONGITUDE + 0.125) * 4) / 4 - 0.125)]
-afd[, daynight := ifelse(solar_elev_ang < 0, "night", "day")]
-afd[, night := as.numeric(solar_elev_ang < 0)]
-afd <- afd[TYPE == 0 & CONFIDENCE >= 10]
+# afd[, `:=`(lat_round = round((LATITUDE + 0.125) * 4) / 4 - 0.125,
+#            lon_round = round((LONGITUDE + 0.125) * 4) / 4 - 0.125)]
+# afd[, daynight := ifelse(solar_elev_ang < 0, "night", "day")]
+# afd[, night := as.numeric(solar_elev_ang < 0)]
+afd <- afd[type == 0 & confidence >= 10]
+
+afd[, acq_month := data.table::month(acq_dttme)]
+afd[, acq_year := data.table::year(acq_dttme)]
+afd[, doy := data.table::yday(acq_dttme)]
 
 afd[, month := str_pad(string = acq_month, width = 2, side = "left", pad = "0")]
 
 # Aggregate by doy and year first, so we can deal with leap years
 
-night_fires_by_lon_lat_year <- afd[, .(N = .N, frp = sum(FRP)), by = .(lon = lon_round, lat = lat_round, year = acq_year, local_doy, daynight)]
+night_fires_by_lon_lat_year <- afd[, .(N = .N, frp = sum(frp)), by = .(lon = x_lc, lat = y_lc, year = acq_year, doy, dn_detect)]
 
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[1]], month := "01"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[2]], month := "02"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[3]], month := "03"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[4]], month := "04"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[5]], month := "05"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[6]], month := "06"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[7]], month := "07"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[8]], month := "08"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[9]], month := "09"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[10]], month := "10"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[11]], month := "11"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month[[12]], month := "12"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[1]], month := "01"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[2]], month := "02"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[3]], month := "03"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[4]], month := "04"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[5]], month := "05"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[6]], month := "06"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[7]], month := "07"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[8]], month := "08"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[9]], month := "09"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[10]], month := "10"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[11]], month := "11"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[12]], month := "12"]
 
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[1]] & year %in% c(2004, 2008, 2012, 2016), month := "01"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[2]] & year %in% c(2004, 2008, 2012, 2016), month := "02"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[3]] & year %in% c(2004, 2008, 2012, 2016), month := "03"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[4]] & year %in% c(2004, 2008, 2012, 2016), month := "04"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[5]] & year %in% c(2004, 2008, 2012, 2016), month := "05"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[6]] & year %in% c(2004, 2008, 2012, 2016), month := "06"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[7]] & year %in% c(2004, 2008, 2012, 2016), month := "07"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[8]] & year %in% c(2004, 2008, 2012, 2016), month := "08"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[9]] & year %in% c(2004, 2008, 2012, 2016), month := "09"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[10]] & year %in% c(2004, 2008, 2012, 2016), month := "10"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[11]] & year %in% c(2004, 2008, 2012, 2016), month := "11"]
-night_fires_by_lon_lat_year[local_doy %in% first_of_months$doys_in_month_leap[[12]] & year %in% c(2004, 2008, 2012, 2016), month := "12"]
+leap_years_in_record <- c(2004, 2008, 2012, 2016, 2020)
 
-data.table::setkeyv(night_fires_by_lon_lat_year, cols = c("daynight", "month", "lon", "lat"))
-detections_per_doy_lon_lat_year <- all_overpasses[night_fires_by_lon_lat_year]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[1]] & year %in% leap_years_in_record, month := "01"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[2]] & year %in% leap_years_in_record, month := "02"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[3]] & year %in% leap_years_in_record, month := "03"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[4]] & year %in% leap_years_in_record, month := "04"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[5]] & year %in% leap_years_in_record, month := "05"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[6]] & year %in% leap_years_in_record, month := "06"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[7]] & year %in% leap_years_in_record, month := "07"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[8]] & year %in% leap_years_in_record, month := "08"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[9]] & year %in% leap_years_in_record, month := "09"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[10]] & year %in% leap_years_in_record, month := "10"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[11]] & year %in% leap_years_in_record, month := "11"]
+night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[12]] & year %in% leap_years_in_record, month := "12"]
 
-# overpasses_per_DOY_2003_2018 represents the cumulative number of overpasses for that DOY/lon/lat combination
-# across all 16 years -- 2003 to 2018
+data.table::setkeyv(night_fires_by_lon_lat_year, cols = c("dn_detect", "month", "lon", "lat"))
+detections_per_doy_lon_lat_year <- all_overpasses[night_fires_by_lon_lat_year, on = c("lon", "lat", "dn_detect", "month")]
 
-detections_per_doy_lon_lat_year[month %in% c("01", "03", "05", "07", "08", "10", "12"), overpasses_per_DOY_2003_2018 := overpass_count / 31]
-detections_per_doy_lon_lat_year[month %in% c("04", "06", "09", "11"), overpasses_per_DOY_2003_2018 := overpass_count / 30]
-detections_per_doy_lon_lat_year[(month == "02") & (year %in% c(2004, 2008, 2012, 2016)), overpasses_per_DOY_2003_2018 := overpass_count / 29]
-detections_per_doy_lon_lat_year[(month == "02") & (!(year %in% c(2004, 2008, 2012, 2016))), overpasses_per_DOY_2003_2018 := overpass_count / 28]
+# overpasses_per_DOY_2003_2020 represents the cumulative number of overpasses for that DOY/lon/lat combination
+# across all 18 years -- 2003 to 2020
+
+detections_per_doy_lon_lat_year[month %in% c("01", "03", "05", "07", "08", "10", "12"), overpasses_per_DOY_2003_2020 := overpass_count / 31]
+detections_per_doy_lon_lat_year[month %in% c("04", "06", "09", "11"), overpasses_per_DOY_2003_2020 := overpass_count / 30]
+detections_per_doy_lon_lat_year[(month == "02") & (year %in% leap_years_in_record), overpasses_per_DOY_2003_2020 := overpass_count / 29]
+detections_per_doy_lon_lat_year[(month == "02") & (!(year %in% leap_years_in_record)), overpasses_per_DOY_2003_2020 := overpass_count / 28]
 
 data.table::setkeyv(detections_per_doy_lon_lat_year, cols = c("lon", "lat"))
 
 # get landcover data ------------------------------------------------------
 
-# Just use the 11 landcovers that we used to derive our VPDt
-# landcovers_of_interest <- c(1:2, 4:10, 12, 14)
-landcovers_of_interest <- c(1:2, 4:10, 12, 14, 18, 19)
-
-landcover <- raster::raster(x = "data/data_raw/GLDASp4_domveg_025d.nc4")
-landcover_area <- raster::area(landcover)
-s <- stack(landcover, landcover_area)
-# raster::origin(landcover) <- raster::origin(raster_template)
+# # Just use the 11 landcovers that we used to derive our VPDt
+# # landcovers_of_interest <- c(1:2, 4:10, 12, 14)
+# landcovers_of_interest <- c(1:2, 4:10, 12, 14, 18, 19)
 landcover_table <- 
-  readr::read_csv(file = "data/data_raw/GLDASp4_domveg_025d_lookup-table.csv") %>% 
-  dplyr::mutate(landcover_split = str_replace(landcover, pattern = " ", replacement = "\n"))
+  read.csv("data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv") %>% 
+  dplyr::mutate(landcover_split = str_replace(lc_name, pattern = " ", replacement = "\n"))
+# 
+# landcover <- raster::raster(x = "data/data_raw/GLDASp4_domveg_025d.nc4")
+# landcover_area <- raster::area(landcover)
+# s <- stack(landcover, landcover_area)
+# # raster::origin(landcover) <- raster::origin(raster_template)
+# landcover_table <- 
+#   readr::read_csv(file = "data/data_raw/GLDASp4_domveg_025d_lookup-table.csv") %>% 
+#   dplyr::mutate(landcover_split = str_replace(landcover, pattern = " ", replacement = "\n"))
+# 
+# landcover_df <- 
+#   s %>% 
+#   as.data.frame(xy = TRUE) %>% 
+#   setNames(c("lon", "lat", "index", "pixel_area_km2")) %>% 
+#   dplyr::left_join(landcover_table, by = "index")
+# 
+# landcover_DT <- as.data.table(landcover_df)
+# data.table::setkeyv(landcover_DT, cols = c("lon", "lat"))
 
-landcover_df <- 
-  s %>% 
-  as.data.frame(xy = TRUE) %>% 
-  setNames(c("lon", "lat", "index", "pixel_area_km2")) %>% 
-  dplyr::left_join(landcover_table, by = "index")
-
-landcover_DT <- as.data.table(landcover_df)
+landcover_DT <- data.table::fread("data/out/area-per-lc-pixel.csv") %>% setNames(c("cell_id_lc", "lon", "lat", "lc", "area_m2"))
 data.table::setkeyv(landcover_DT, cols = c("lon", "lat"))
 
-total_landcover_areas <-
-  landcover_DT %>% 
-  dplyr::group_by(index) %>% 
-  dplyr::summarize(total_area_of_landcover_km2 = as.numeric(sum(pixel_area_km2, na.rm = TRUE))) %>% 
-  dplyr::left_join(landcover_table, by = "index")
+# total_landcover_areas <-
+#   landcover_DT %>% 
+#   dplyr::group_by(index) %>% 
+#   dplyr::summarize(total_area_of_landcover_km2 = as.numeric(sum(pixel_area_km2, na.rm = TRUE))) %>% 
+#   dplyr::left_join(landcover_table, by = "index")
+
+total_landcover_areas <- data.table::fread("data/out/area-per-lc.csv")[lc %in% landcover_table$koppen_modis_code]
 
 total_landcover_areas_hemisphere <-
-  landcover_DT %>% 
-  dplyr::mutate(hemisphere = ifelse(lat < 0, yes = "southern", no = "northern")) %>% 
-  dplyr::group_by(index, hemisphere) %>% 
-  dplyr::summarize(total_area_of_landcover_km2 = as.numeric(sum(pixel_area_km2, na.rm = TRUE))) %>% 
-  dplyr::left_join(landcover_table, by = "index")
+  landcover_DT %>%
+  dplyr::mutate(hemisphere = ifelse(lat < 0, yes = "southern", no = "northern")) %>%
+  dplyr::group_by(lc, hemisphere) %>%
+  dplyr::summarize(area_km2 = as.numeric(sum(area_m2, na.rm = TRUE) / 1e6)) %>%
+  dplyr::left_join(landcover_table, by = c(lc = "koppen_modis_code"))
 
-detections_per_doy_lon_lat_year_landcover <- landcover_DT[detections_per_doy_lon_lat_year]
-data.table::setkeyv(detections_per_doy_lon_lat_year_landcover, cols = c("lon", "lat", "index"))
+detections_per_doy_lon_lat_year_landcover <- landcover_DT[detections_per_doy_lon_lat_year, on = c("lon", "lat")]
+data.table::setkeyv(detections_per_doy_lon_lat_year_landcover, cols = c("lon", "lat", "cell_id_lc"))
 
-detections_per_doy_year_landcover <- detections_per_doy_lon_lat_year_landcover[, .(area_with_detections = sum(pixel_area_km2)), by = .(index, daynight, year, local_doy)]
+detections_per_doy_year_landcover <- detections_per_doy_lon_lat_year_landcover[, .(area_with_detections = sum(area_m2)), by = .(lc, dn_detect, year, doy)]
 
 detections_per_doy_year_landcover <-
   detections_per_doy_year_landcover %>% 
-  dplyr::left_join(landcover_table) %>% 
+  dplyr::left_join(landcover_table, by = c(lc = "koppen_modis_code")) %>% 
   as.data.table()
 
-area_with_detections_per_doy_landcover <- detections_per_doy_year_landcover[, .(mean_area_with_detections_per_year = mean(area_with_detections)), by = .(index, daynight, local_doy)]
+area_with_detections_per_doy_landcover <- detections_per_doy_year_landcover[, .(mean_area_with_detections_per_year = mean(area_with_detections)), by = .(lc, dn_detect, doy)]
 
 area_with_detections_per_doy_landcover <- 
   area_with_detections_per_doy_landcover %>% 
-  dplyr::left_join(total_landcover_areas, by = "index") %>% 
+  dplyr::left_join(total_landcover_areas, by = "lc") %>% 
   as.data.table()
 
-# Here, the mean of the overpasses_per_DOY_2003_2018 variable is taken across the stack of 16 years
+# Here, the mean of the overpasses_per_DOY_2003_2020 variable is taken across the stack of 18 years
 # to account for leap year shifts in which DOY corresponds to which calendar day. For instance, in 
 # 2003, the 29th day of the year was in March (March 1st), but in 2004-- a leap year, the 29th day was
 # in February. We tried to account for this by carefully dividing up the number of overpasses per
@@ -203,16 +216,16 @@ area_with_detections_per_doy_landcover <-
 # dramatically, but it helps get our data.frame into the right shape for joining and summarizing.
 detections_per_doy_lon_lat <- 
   detections_per_doy_lon_lat_year[, .(total_detections = sum(N),
-                                      overpasses_per_DOY_2003_2018 = mean(overpasses_per_DOY_2003_2018),
+                                      overpasses_per_DOY_2003_2020 = mean(overpasses_per_DOY_2003_2020),
                                       n_years_the_pixel_burned = .N,
                                       total_frp = sum(frp)),
-                                  by = .(lon, lat, local_doy, daynight)]
+                                  by = .(lon, lat, doy, dn_detect)]
 
 # mean_detections_per_overpass represents the total number of detections per lon/lat across
 # the 16-year period divided by the total number of overpasses per lon/lat across the 16 year period
 # Thus we can think of it as the expected number of detections per year per overpass
-detections_per_doy_lon_lat[, `:=`(mean_detections_per_overpass = total_detections / overpasses_per_DOY_2003_2018,
-                                  frp_per_overpass = total_frp / overpasses_per_DOY_2003_2018)]
+detections_per_doy_lon_lat[, `:=`(mean_detections_per_overpass = total_detections / overpasses_per_DOY_2003_2020,
+                                  frp_per_overpass = total_frp / overpasses_per_DOY_2003_2020)]
 detections_per_doy_lon_lat[, hemisphere := ifelse(lat < 0, yes = "southern", no = "northern")]
 
 detections_per_doy_lon_lat_landcover <- landcover_DT[detections_per_doy_lon_lat]
@@ -227,20 +240,20 @@ detections_per_doy_landcover <-
                                          total_frp = sum(total_frp),
                                          mean_detections_per_overpass_on_DOY = sum(mean_detections_per_overpass),
                                          frp_per_overpass_on_DOY = sum(frp_per_overpass),
-                                         sum_area_affected_by_detections_on_DOY_km2 = sum(pixel_area_km2),
-                                         mean_annual_area_affected_by_detections_on_DOY_km2 = sum(pixel_area_km2 * n_years_the_pixel_burned / 16),
+                                         sum_area_affected_by_detections_on_DOY_km2 = sum(area_m2) / 1e6,
+                                         mean_annual_area_affected_by_detections_on_DOY_km2 = sum(area_m2 / 1e6 * n_years_the_pixel_burned / 18),
                                          n_pixels_with_detections = .N), 
-                                       by = .(index, local_doy, daynight)]
+                                       by = .(lc, doy, dn_detect)]
 
 # Join with the table representing how much land area is covered by each landcover type
 detections_per_doy_landcover <-
   detections_per_doy_landcover %>% 
-  dplyr::left_join(total_landcover_areas, by = "index") %>% 
-  dplyr::mutate(mean_detections_per_overpass_on_DOY_per_km2 = mean_detections_per_overpass_on_DOY / total_area_of_landcover_km2,
-                pct_of_landcover_area_affected_by_detections = mean_annual_area_affected_by_detections_on_DOY_km2 / total_area_of_landcover_km2,
+  dplyr::left_join(total_landcover_areas, by = "lc") %>% 
+  dplyr::mutate(mean_detections_per_overpass_on_DOY_per_km2 = mean_detections_per_overpass_on_DOY / area_km2,
+                pct_of_landcover_area_affected_by_detections = mean_annual_area_affected_by_detections_on_DOY_km2 / area_km2,
                 detections_per_pixel = total_detections / n_pixels_with_detections,
                 frp_per_detection = total_frp / total_detections,
-                frp_per_overpass_on_DOY_per_km2 = frp_per_overpass_on_DOY / total_area_of_landcover_km2) %>% 
+                frp_per_overpass_on_DOY_per_km2 = frp_per_overpass_on_DOY / area_km2) %>% 
   as.data.table()
 
 # Same set of aggregations as above, except now also breaking down by northern and southern
@@ -251,19 +264,19 @@ detections_per_doy_landcover_hemisphere <-
                                          total_frp = sum(total_frp),
                                          mean_detections_per_overpass_on_DOY = sum(mean_detections_per_overpass),
                                          frp_per_overpass_on_DOY = sum(frp_per_overpass),
-                                         sum_area_affected_by_detections_on_DOY_km2 = sum(pixel_area_km2),
-                                         mean_annual_area_affected_by_detections_on_DOY_km2 = sum(pixel_area_km2 * n_years_the_pixel_burned / 16),
+                                         sum_area_affected_by_detections_on_DOY_km2 = sum(area_m2) / 1e6,
+                                         mean_annual_area_affected_by_detections_on_DOY_km2 = sum(area_m2 / 1e6 * n_years_the_pixel_burned / 18),
                                          n_pixels_with_detections = .N), 
-                                       by = .(index, hemisphere, local_doy, daynight)]
+                                       by = .(lc, hemisphere, doy, dn_detect)]
 
 detections_per_doy_landcover_hemisphere <-
-  detections_per_doy_landcover_hemisphere %>% 
-  dplyr::left_join(total_landcover_areas_hemisphere, by = c("index", "hemisphere")) %>% 
-  dplyr::mutate(mean_detections_per_overpass_on_DOY_per_km2 = mean_detections_per_overpass_on_DOY / total_area_of_landcover_km2,
-                pct_of_landcover_area_affected_by_detections = mean_annual_area_affected_by_detections_on_DOY_km2 / total_area_of_landcover_km2,
+  detections_per_doy_landcover_hemisphere %>%
+  dplyr::left_join(total_landcover_areas_hemisphere, by = c("lc", "hemisphere")) %>%
+  dplyr::mutate(mean_detections_per_overpass_on_DOY_per_km2 = mean_detections_per_overpass_on_DOY / area_km2 ,
+                pct_of_landcover_area_affected_by_detections = mean_annual_area_affected_by_detections_on_DOY_km2 / area_km2 ,
                 detections_per_pixel = total_detections / n_pixels_with_detections,
                 frp_per_detection = total_frp / total_detections,
-                frp_per_overpass_on_DOY_per_km2 = frp_per_overpass_on_DOY / total_area_of_landcover_km2) %>% 
+                frp_per_overpass_on_DOY_per_km2 = frp_per_overpass_on_DOY / area_km2 ) %>%
   as.data.table()
 
 
@@ -281,7 +294,7 @@ doy_slider <- function(this_afd, doy, delta, var) {
   
   smoothed_data <- 
     this_afd %>% 
-    dplyr::filter(local_doy %in% doy_seq) %>% 
+    dplyr::filter(doy %in% doy_seq) %>% 
     dplyr::pull({{var}}) %>% 
     mean()
   
@@ -295,18 +308,18 @@ alpha_high <- 1
 
 afd_of_interest <- 
   detections_per_doy_landcover %>% 
-  dplyr::filter(index %in% landcovers_of_interest) %>% 
-  dplyr::filter(local_doy != 366) %>% 
-  dplyr::group_by(index, daynight) %>% 
+  dplyr::filter(lc %in% landcover_table$koppen_modis_code) %>% 
+  dplyr::filter(doy != 366) %>% 
+  dplyr::group_by(lc, dn_detect) %>% 
   dplyr::group_modify(.f = function(.x, ...) {
     .x <-
       .x %>% 
       dplyr::mutate(smoothed_detections = purrr::map_dbl(this_afd = ., 
-                                                         local_doy, 
+                                                         doy, 
                                                          .f = doy_slider,
                                                          delta = 15,
                                                          var = mean_detections_per_overpass_on_DOY_per_km2)) %>% 
-      dplyr::mutate(smoothed_frp = purrr::map_dbl(local_doy,
+      dplyr::mutate(smoothed_frp = purrr::map_dbl(doy,
                                                   .f = doy_slider,
                                                   this_afd = .,
                                                   delta = 15,
@@ -322,9 +335,9 @@ afd_of_interest <-
                                                               yes = alpha_low,
                                                               no = alpha_high),
                     over_threshold_raw_frp = ifelse(frp_per_overpass_on_DOY_per_km2 < 
-                                                         (12/3650) * sum(frp_per_overpass_on_DOY_per_km2),
-                                                       yes = alpha_low,
-                                                       no = alpha_high),
+                                                      (12/3650) * sum(frp_per_overpass_on_DOY_per_km2),
+                                                    yes = alpha_low,
+                                                    no = alpha_high),
                     over_threshold_smooth_frp = ifelse(smoothed_frp < 
                                                          (12/3650) * sum(smoothed_frp),
                                                        yes = alpha_low,
@@ -350,26 +363,27 @@ afd_of_interest <-
 # Determine landcover order
 landcover_order <- 
   afd_of_interest %>% 
-  dplyr::filter(daynight == "night") %>% 
+  dplyr::filter(dn_detect == "night") %>% 
   dplyr::summarize(detections = sum(smoothed_detections)) %>% 
   dplyr::ungroup() %>% 
-  dplyr::left_join(landcover_table, by = "index") %>% 
+  dplyr::left_join(landcover_table, by = c(lc = "koppen_modis_code")) %>% 
   dplyr::mutate(landcover_split = factor(landcover_split, levels = landcover_split[order(detections, decreasing = TRUE)]),
-                landcover = factor(landcover, levels = landcover[order(detections, decreasing = TRUE)]),
-                index = factor(index, levels = index[order(detections, decreasing = TRUE)]))
+                lc_name = factor(lc_name, levels = lc_name[order(detections, decreasing = TRUE)]),
+                lc = factor(lc, levels = lc[order(detections, decreasing = TRUE)]))
 
 afd_of_interest <-
   afd_of_interest %>% 
   dplyr::ungroup() %>% 
+  dplyr::left_join(landcover_table, by = c(lc = "koppen_modis_code")) %>% 
   dplyr::mutate(landcover_split = factor(landcover_split, levels = levels(landcover_order$landcover_split)),
-                landcover = factor(landcover, levels = levels(landcover_order$landcover)),
-                index = factor(index, levels = levels(landcover_order$index)))
+                lc_name = factor(lc_name, levels = levels(landcover_order$lc_name)),
+                lc = factor(lc, levels = levels(landcover_order$lc)))
 
 # Plot
 gg_fire_season <-
-  ggplot(afd_of_interest, aes(x = local_doy, 
+  ggplot(afd_of_interest, aes(x = doy, 
                               y = 1e6 * smoothed_detections, 
-                              color = daynight, 
+                              color = dn_detect, 
                               alpha = over_threshold_smooth_detections)) +
   geom_line(lwd = 1) +
   theme_bw(base_size = 10) +
@@ -378,9 +392,9 @@ gg_fire_season <-
         axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
         axis.text = element_text(),
         axis.title.x = element_blank(),
-        legend.position = c(5/6, 1/8)) +
+        legend.position = c(3/6, -1/5)) +
   scale_color_manual(values = c("#b2182b", "#2166ac")) +
-  facet_wrap(facets = vars(landcover_split), ncol = 3) +
+  facet_wrap(facets = vars(landcover_split), ncol = 5) +
   labs(x = "Day of year",
        y = bquote("Expected detections per day per overpass per 1 million" ~ km^2),
        color = "Day or night?") +
@@ -399,9 +413,9 @@ ggsave(filename = "figures/fire-seasonality-detections_daynight-landcover.png", 
 # FRP
 
 gg_fire_season_frp <-
-  ggplot(afd_of_interest, aes(x = local_doy, 
+  ggplot(afd_of_interest, aes(x = doy, 
                               y = 1e6 * smoothed_frp, 
-                              color = daynight, 
+                              color = dn_detect, 
                               alpha = over_threshold_smooth_frp)) +
   geom_line(lwd = 1) +
   theme_bw(base_size = 10) +

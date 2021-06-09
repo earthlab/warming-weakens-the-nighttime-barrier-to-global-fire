@@ -100,10 +100,14 @@ afd_global_summary <-
   dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / sum(lc_area$area_km2)) * 1e6) %>% 
   dplyr::filter(acq_year >= 2003)
 
+write.csv(afd_global_summary, "data/out/mcd14ml-global-trend-by-month.csv")
+
 afd_global_summary_wide <-
   afd_global_summary %>% 
   tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("year_month", "acq_year", "acq_month")) %>% 
   dplyr::mutate(prop_n_night = night  / (night + day))
+
+write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-by-month_wide.csv")
 
 global_n_gg <-
   ggplot(afd_global_summary, aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +

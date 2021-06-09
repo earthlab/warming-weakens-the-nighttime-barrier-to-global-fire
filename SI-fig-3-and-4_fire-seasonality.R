@@ -407,7 +407,7 @@ gg_fire_season <-
 
 gg_fire_season
 
-ggsave(filename = "figures/fire-seasonality-detections_daynight-landcover.png", plot = gg_fire_season, width = 183, height = 4/3 * 183, units = "mm")
+ggsave(filename = "figs/fire-seasonality-detections_daynight-landcover.png", plot = gg_fire_season, width = 183, height = 4/3 * 183, units = "mm")
 
 
 # FRP

@@ -317,14 +317,14 @@ gam_data <-
   dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
 
 # https://fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
-m1 <- gamm(prop_n_night ~ s(acq_month, bs = "cc", k = 12) + s(time), 
+m1 <- gam(prop_n_night ~ s(acq_month, bs = "cc", k = 12) + s(time), 
           data = gam_data, 
           correlation = corARMA(form = ~ 1, p = 1))
-plot(m1$gam)
+plot(m1)
 
-summary(m1$gam)
+summary(m1)
 
 layout(matrix(1:2, ncol = 2))
-acf(resid(m1$lme), lag.max = 36, main = "ACF")
-pacf(resid(m1$lme), lag.max = 36, main = "pACF")
+acf(resid(m1), lag.max = 36, main = "ACF")
+pacf(resid(m1), lag.max = 36, main = "pACF")
 layout(1)

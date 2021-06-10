@@ -10,11 +10,14 @@ library(pbapply)
 n_workers <- 8
 
 system2(command = "aws", args = "s3 sync s3://earthlab-mkoontz/MODIS-overpass-counts_0.25_analysis-ready/year-month/ data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/year-month/")
+system2(command = "aws",
+        args = "s3 sync s3://earthlab-mkoontz/mcd14ml_analysis-ready data/out/mcd14ml_analysis-ready")
+
 
 # overpass corrections
 overpass_files <- list.files(path = "data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/year-month/", full.names = TRUE)
 
-afd_files <- list.files(path = "data/out/mcd14ml_analysis-ready/", pattern = ".csv", full.names = TRUE)
+afd_files <- list.files(path = "data/out/mcd14ml_analysis-ready", pattern = ".csv", full.names = TRUE)
 
 years <- regmatches(afd_files, 
                     regexpr(text = afd_files, 

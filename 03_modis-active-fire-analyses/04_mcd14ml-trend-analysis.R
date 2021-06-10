@@ -24,9 +24,9 @@ lc_area <-
 
 afd <- data.table::fread(input = "data/out/mcd14ml_n-frp_month-lc-xy-daynight-summary.csv")
 
-afd[, `:=`(n_per_op = ifelse(dn_detect == "day", yes = n / op_day, no = n / op_night))]
+afd[, n_per_op := n / op]
 
-afd <- afd[!(op_night == 0 & dn_detect == "night"), ][!(op_day == 0 & dn_detect == "day"), ]
+afd <- afd[!(op == 0 & n > 0), ]
 
 # join active fire data with area information per cell and landcovers
 # Only if you need the per-pixel area corrections (we didn't use these)
@@ -67,31 +67,12 @@ afd[acq_year > 2002, .(total_n_per_op = sum(n_per_op), total_n = sum(n),
   summarize(mean_prop = mean(prop_n_per_op_night),
             sd_prop = sd(prop_n_per_op_night))
 
-### Summarize the trends in day/night detections and FRP through MODIS record
-afd_summary <- 
-  afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), 
-          n_per_op_per_px = mean(n_per_op),
-          total_frp = sum(sum_frp), 
-          n_px = .N,
-          n_op_day = sum(op_day), n_op_night = sum(op_night)), 
-      by = .(acq_year, acq_month, dn_detect, lc)] %>% 
-  left_join(lc_area) %>% 
-  dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
-                mean_frp_per_px = total_frp / n_px) %>% 
-  dplyr::mutate(year_month = lubridate::ymd(paste0(acq_year, "-", acq_month, "-", "15"))) %>% 
-  tidyr::complete(year_month, nesting(lc, dn_detect, koppen_orig_modis_name), fill = list(n_per_op = 0, frp_per_op = 0)) %>% 
-  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_km2) * 1e6) %>% 
-  dplyr::filter(!is.na(koppen_orig_modis_name), acq_year >= 2003) %>% 
-  dplyr::mutate(koppen = substr(x = lc, start = 1, stop = 1),
-                modis = substr(x = lc, start = 2, stop = 3))
-
-afd_summary
-
+### begin global aggregations ###
 afd_global_summary <-
   afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), n_per_op_per_px = mean(n_per_op),
           total_frp = sum(sum_frp),
           n_px = .N,
-          n_op_day = sum(op_day), n_op_night = sum(op_night)), 
+          n_op = sum(op)), 
       by = .(acq_year, acq_month, dn_detect)] %>% 
   dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
                 mean_frp_per_px = total_frp / n_px) %>% 
@@ -108,6 +89,82 @@ afd_global_summary_wide <-
   dplyr::mutate(prop_n_night = night  / (night + day))
 
 write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-by-month_wide.csv")
+
+### end global aggregations ###
+
+### begin aggregations by Koppen class ###
+lc_area_koppen <-
+  lc_area %>% 
+  dplyr::mutate(koppen = substr(x = lc, start = 1, stop = 1),
+                modis = substr(x = lc, start = 2, stop = 3)) %>% 
+  group_by(koppen) %>% 
+  dplyr::summarize(area_km2 = sum(area_km2))
+
+afd[, `:=`(koppen = substr(x = lc, start = 1, stop = 1),
+           modis = substr(x = lc, start = 2, stop = 3))]
+
+afd_koppen_summary <-
+  afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), n_per_op_per_px = mean(n_per_op),
+          total_frp = sum(sum_frp),
+          n_px = .N,
+          n_op = sum(op)), 
+      by = .(acq_year, acq_month, koppen, dn_detect)] %>% 
+  dplyr::left_join(lc_area_koppen) %>% 
+  dplyr::filter(!is.na(area_km2)) %>% 
+  dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
+                mean_frp_per_px = total_frp / n_px) %>% 
+  dplyr::mutate(year_month = lubridate::ymd(paste0(acq_year, "-", acq_month, "-", "15"))) %>% 
+  tidyr::complete(year_month, nesting(koppen, dn_detect), fill = list(n_per_op = 0, frp_per_op = 0)) %>% 
+  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_km2) * 1e6) %>% 
+  dplyr::filter(acq_year >= 2003)
+
+afd_koppen_summary
+
+write.csv(afd_koppen_summary, "data/out/mcd14ml-trend-by-month-koppen.csv")
+
+afd_koppen_summary_wide <-
+  afd_koppen_summary %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("koppen", "year_month", "acq_year", "acq_month")) %>% 
+  dplyr::mutate(prop_n_night = night  / (night + day))
+
+write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-by-month-koppen_wide.csv")
+
+
+### end aggregations by Koppen class ###
+
+### begin aggregations by landcover (koppen + MODIS) ###
+
+afd_summary <- 
+  afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), 
+          n_per_op_per_px = mean(n_per_op),
+          total_frp = sum(sum_frp), 
+          n_px = .N,
+          n_op = sum(op)), 
+      by = .(acq_year, acq_month, dn_detect, lc)] %>% 
+  left_join(lc_area) %>% 
+  dplyr::filter(!is.na(area_km2)) %>% 
+  dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
+                mean_frp_per_px = total_frp / n_px) %>% 
+  dplyr::mutate(year_month = lubridate::ymd(paste0(acq_year, "-", acq_month, "-", "15"))) %>% 
+  tidyr::complete(year_month, nesting(lc, dn_detect, koppen_orig_modis_name), fill = list(n_per_op = 0, frp_per_op = 0)) %>% 
+  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_km2) * 1e6) %>% 
+  dplyr::filter(!is.na(koppen_orig_modis_name), acq_year >= 2003) %>% 
+  dplyr::mutate(koppen = substr(x = lc, start = 1, stop = 1),
+                modis = substr(x = lc, start = 2, stop = 3))
+
+afd_summary
+
+write.csv(afd_summary, "data/out/mcd14ml-trend-by-month-landcover.csv")
+
+afd_landcover_summary_wide <-
+  afd_summary %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("lc", "year_month", "acq_year", "acq_month")) %>% 
+  dplyr::mutate(prop_n_night = night  / (night + day))
+
+write.csv(afd_landcover_summary_wide, "data/out/mcd14ml-trend-by-month-landcover_wide.csv")
+
+
+### end aggregations by landcover (Koppen + MODIS) ###
 
 global_n_gg <-
   ggplot(afd_global_summary, aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
@@ -257,13 +314,17 @@ ggsave(filename = "figs/mcd14ml_frp-trend_cold.png", plot = cold_frp_gg)
 ### Formal analysis
 gam_data <- 
   afd_global_summary_wide %>% 
-    dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
+  dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
 
 # https://fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
-m <- gamm(prop_n_night ~ s(acq_month, bs = "cc", k = 12) + s(time), data = gam_data)
-plot(m$gam)
+m1 <- gam(prop_n_night ~ s(acq_month, bs = "cc", k = 12) + s(time), 
+          data = gam_data, 
+          correlation = corARMA(form = ~ 1, p = 1))
+plot(m1)
+
+summary(m1)
 
 layout(matrix(1:2, ncol = 2))
-acf(resid(m$lme), lag.max = 36, main = "ACF")
-pacf(resid(m$lme), lag.max = 36, main = "pACF")
+acf(resid(m1), lag.max = 36, main = "ACF")
+pacf(resid(m1), lag.max = 36, main = "pACF")
 layout(1)

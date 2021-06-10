@@ -74,30 +74,34 @@ monthly_afd_l <-
         op_this_year[grepl(x = op_this_year, pattern = paste0(years[i], "-", unique_months[j])) & grepl(x = op_this_year, pattern = "day")] %>% 
         terra::rast() %>% 
         terra::shift(dx = -0.25, dy = 0.25) %>% 
-        setNames("op_day") %>% 
+        setNames("op") %>% 
         as.data.frame(xy = TRUE, cells = TRUE) %>% 
         dplyr::rename(x_lc = "x", y_lc = "y") %>% 
         dplyr::mutate(acq_year = years[i], acq_month = unique_months[j]) %>% 
         dplyr::rename(cell_id_lc = "cell") %>% 
         as.data.table()
       
+      op_day[, dn_detect := "day"]
+      
       op_night <- 
         op_this_year[grepl(x = op_this_year, pattern = paste0(years[i], "-", unique_months[j])) & grepl(x = op_this_year, pattern = "night")] %>% 
         terra::rast() %>% 
         terra::shift(dx = -0.25, dy = 0.25) %>% 
-        setNames("op_night") %>% 
+        setNames("op") %>% 
         as.data.frame(xy = TRUE, cells = TRUE) %>% 
         dplyr::rename(x_lc = "x", y_lc = "y") %>% 
         dplyr::mutate(acq_year = years[i], acq_month = unique_months[j]) %>% 
         dplyr::rename(cell_id_lc = "cell") %>%
         as.data.table()
       
-      # Join day and night overpasses for this month/year combo into one data.table
-      op <- op_day[op_night, on = c("cell_id_lc", "x_lc", "y_lc", "acq_year", "acq_month")] 
+      op_night[, dn_detect := "night"]
       
+      # Combine day and night overpasses for this month/year combo into one data.table
+      op <- rbind(op_day, op_night)
+      # op <- op_day[op_night, on = c("cell_id_lc", "x_lc", "y_lc", "acq_year", "acq_month")] 
       this_year_month_afd <- year_month_afd[acq_month == unique_months[j]]
       
-      year_month_afd_op_l[[j]] <- op[this_year_month_afd, on = c("cell_id_lc", "x_lc", "y_lc", "acq_month", "acq_year")]
+      year_month_afd_op_l[[j]] <- op[this_year_month_afd, on = c("cell_id_lc", "x_lc", "y_lc", "acq_month", "acq_year", "dn_detect")]
       
     }
     

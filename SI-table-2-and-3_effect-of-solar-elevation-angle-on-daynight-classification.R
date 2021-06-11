@@ -8,59 +8,14 @@ lc_lookup <- fread("data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.cs
 
 # How much does it matter whether we use the center of the sun's disc to calculate day/night
 # (basing on solar elevation angle) vs. using the top of the sun's disc?
-
 afd_files <- list.files("data/out/mcd14ml_analysis-ready/", full.names = TRUE)
 
 afd <- lapply(X = afd_files, FUN = fread, colClasses = c(acq_time = "character"))
 afd <- data.table::rbindlist(afd)
 afd <- afd[type == 0 & confidence >= 10]
 
-afd
-# afd[, `:=`(lat_round = round((LATITUDE + 0.125) * 4) / 4 - 0.125,
-#            lon_round = round((LONGITUDE + 0.125) * 4) / 4 - 0.125)]
-# afd[, daynight_mid_disc := ifelse(solar_elev_ang > 0, yes = "day", no = "night")]
-# afd[, daynight_top_disc := ifelse(solar_elev_ang > -(0.53/2), yes = "day", no = "night")]
-# data.table::setkey(afd, lat_round, lon_round)
-
 afd[, .(pct_solar_ang_gt_0 = length(which(dn_detect == "day")) / length(dn_detect)), by = (daynight)]
 afd[, .(pct_solar_ang_gt_neg_0.265 = length(which(solar_ang > -0.265)) / length(solar_ang)), by = (daynight)]
-
-# > afd[, .(pct_solar_ang_gt_0 = length(which(dn_detect == "day")) / length(dn_detect)), by = (daynight)]
-# daynight pct_solar_ang_gt_0
-# 1:        D         1.00000000
-# 2:        N         0.02781014
-# 
-# > afd[, .(pct_solar_ang_gt_neg_0.265 = length(which(solar_ang > -0.265)) / length(solar_ang)), by = (daynight)]
-# daynight pct_solar_ang_gt_neg_0.265
-# 1:        D                 1.00000000
-# 2:        N                 0.02970167
-
-
-# # landcover ---------------------------------------------------------------
-# area_per_lc_pixel <- fread("data/out/area-per-lc-pixel.csv")
-# 
-# afd
-# # Just use the 11 landcovers that we used to derive our VPDt
-# landcovers_of_interest <- c(1:2, 4:10, 12, 14)
-# 
-# lc <- terra::rast(x = "data/out/lc_koppen_2010_mode.tif")
-# 
-# landcover_area <- raster::area(landcover)
-# s <- stack(landcover, landcover_area)
-# # raster::origin(landcover) <- raster::origin(raster_template)
-# landcover_table <- 
-#   readr::read_csv(file = "data/data_raw/GLDASp4_domveg_025d_lookup-table.csv") %>% 
-#   dplyr::mutate(landcover_split = str_replace(landcover, pattern = " ", replacement = "\n"))
-# 
-# landcover_df <- 
-#   s %>% 
-#   as.data.frame(xy = TRUE) %>% 
-#   setNames(c("lon", "lat", "index", "pixel_area_km2")) %>% 
-#   dplyr::left_join(landcover_table, by = "index")
-# 
-# landcover_DT <- as.data.table(landcover_df)
-# data.table::setkeyv(landcover_DT, cols = c("lon", "lat"))
-# 
 
 # aggregate to lon lat ----------------------------------------------------
 

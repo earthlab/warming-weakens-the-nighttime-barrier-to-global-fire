@@ -81,14 +81,31 @@ afd_global_summary <-
   dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / sum(lc_area$area_km2)) * 1e6) %>% 
   dplyr::filter(acq_year >= 2003)
 
-write.csv(afd_global_summary, "data/out/mcd14ml-global-trend-by-month.csv")
 
 afd_global_summary_wide <-
   afd_global_summary %>% 
   tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("year_month", "acq_year", "acq_month")) %>% 
   dplyr::mutate(prop_n_night = night  / (night + day))
 
-write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-by-month_wide.csv")
+
+afd_global_summary_by_year <-
+  afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), n_per_op_per_px = mean(n_per_op),
+          total_frp = sum(sum_frp),
+          n_px = .N,
+          n_op = sum(op)), 
+      by = .(acq_year, dn_detect)] %>% 
+  dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
+                mean_frp_per_px = total_frp / n_px) %>% 
+  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / sum(lc_area$area_km2)) * 1e6) %>% 
+  dplyr::filter(acq_year >= 2003)
+
+
+afd_global_summary_by_year_wide <-
+  afd_global_summary_by_year %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = c("total_n_per_op", "mean_frp_per_detection"), id_cols = c("acq_year")) %>% 
+  dplyr::mutate(prop_n_night = total_n_per_op_night  / (total_n_per_op_night + total_n_per_op_day))
+
+afd_global_summary_by_year_wide
 
 ### end global aggregations ###
 
@@ -120,15 +137,10 @@ afd_koppen_summary <-
 
 afd_koppen_summary
 
-write.csv(afd_koppen_summary, "data/out/mcd14ml-trend-by-month-koppen.csv")
-
 afd_koppen_summary_wide <-
   afd_koppen_summary %>% 
   tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("koppen", "year_month", "acq_year", "acq_month")) %>% 
   dplyr::mutate(prop_n_night = night  / (night + day))
-
-write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-by-month-koppen_wide.csv")
-
 
 ### end aggregations by Koppen class ###
 
@@ -154,17 +166,43 @@ afd_summary <-
 
 afd_summary
 
-write.csv(afd_summary, "data/out/mcd14ml-trend-by-month-landcover.csv")
-
 afd_landcover_summary_wide <-
   afd_summary %>% 
   tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("lc", "year_month", "acq_year", "acq_month")) %>% 
   dplyr::mutate(prop_n_night = night  / (night + day))
 
-write.csv(afd_landcover_summary_wide, "data/out/mcd14ml-trend-by-month-landcover_wide.csv")
-
-
 ### end aggregations by landcover (Koppen + MODIS) ###
+
+### write to disk and upload
+
+write.csv(afd_global_summary, "data/out/mcd14ml-global-trend-by-month.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-by-month.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-by-month.csv")
+
+write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-by-month_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-by-month_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-by-month_wide.csv")
+
+write.csv(afd_global_summary_by_year, "data/out/mcd14ml-global-trend-by-year.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-by-year.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-by-year.csv")
+
+write.csv(afd_global_summary_by_year_wide, "data/out/mcd14ml-global-trend-by-year_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-by-year_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-by-year_wide.csv")
+
+write.csv(afd_koppen_summary, "data/out/mcd14ml-trend-by-month-koppen.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-by-month-koppen.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-by-month-koppen.csv")
+
+write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-by-month-koppen_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-by-month-koppen_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-by-month-koppen_wide.csv")
+
+write.csv(afd_summary, "data/out/mcd14ml-trend-by-month-landcover.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-by-month-landcover.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-by-month-landcover.csv")
+
+write.csv(afd_landcover_summary_wide, "data/out/mcd14ml-trend-by-month-landcover_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-by-month-landcover_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-by-month-landcover_wide.csv")
+
+
+
+###
+
 
 global_n_gg <-
   ggplot(afd_global_summary, aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +

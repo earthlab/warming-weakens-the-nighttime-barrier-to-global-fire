@@ -1,174 +1,235 @@
-library(tidyverse)
+library(dplyr)
 library(sf)
+library(terra)
 library(data.table)
+
+# Landcovers we deem "burnable"
+lc_lookup <- fread("data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
 
 # How much does it matter whether we use the center of the sun's disc to calculate day/night
 # (basing on solar elevation angle) vs. using the top of the sun's disc?
 
-years <- 2003:2018
+afd_files <- list.files("data/out/mcd14ml_analysis-ready/", full.names = TRUE)
 
-afd <- lapply(X = years, 
-              FUN = function(this_year) {
-                fread(paste0("data/data_output/mcd14ml_solar-elevation-angle/mcd14ml_solar-elevation-angle_", this_year, ".csv"))
-              })
-
+afd <- lapply(X = afd_files, FUN = fread, colClasses = c(acq_time = "character"))
 afd <- data.table::rbindlist(afd)
+afd <- afd[type == 0 & confidence >= 10]
 
-afd[, `:=`(lat_round = round((LATITUDE + 0.125) * 4) / 4 - 0.125,
-           lon_round = round((LONGITUDE + 0.125) * 4) / 4 - 0.125)]
-afd[, daynight_mid_disc := ifelse(solar_elev_ang > 0, yes = "day", no = "night")]
-afd[, daynight_top_disc := ifelse(solar_elev_ang > -(0.53/2), yes = "day", no = "night")]
-afd <- afd[TYPE == 0 & CONFIDENCE >= 10]
-data.table::setkey(afd, lat_round, lon_round)
+afd
+# afd[, `:=`(lat_round = round((LATITUDE + 0.125) * 4) / 4 - 0.125,
+#            lon_round = round((LONGITUDE + 0.125) * 4) / 4 - 0.125)]
+# afd[, daynight_mid_disc := ifelse(solar_elev_ang > 0, yes = "day", no = "night")]
+# afd[, daynight_top_disc := ifelse(solar_elev_ang > -(0.53/2), yes = "day", no = "night")]
+# data.table::setkey(afd, lat_round, lon_round)
 
-afd[, .(pct_solar_ang_gt_0 = length(which(solar_elev_ang > 0)) / length(solar_elev_ang)), by = (DAYNIGHT)]
-afd[, .(pct_solar_ang_gt_neg_0.265 = length(which(solar_elev_ang > -0.265)) / length(solar_elev_ang)), by = (DAYNIGHT)]
+afd[, .(pct_solar_ang_gt_0 = length(which(dn_detect == "day")) / length(dn_detect)), by = (daynight)]
+afd[, .(pct_solar_ang_gt_neg_0.265 = length(which(solar_ang > -0.265)) / length(solar_ang)), by = (daynight)]
 
-# > afd[, .(pct_solar_ang_gt_0 = length(which(solar_elev_ang > 0)) / length(solar_elev_ang)), by = (DAYNIGHT)]
-# DAYNIGHT pct_solar_ang_gt_0
+# > afd[, .(pct_solar_ang_gt_0 = length(which(dn_detect == "day")) / length(dn_detect)), by = (daynight)]
+# daynight pct_solar_ang_gt_0
 # 1:        D         1.00000000
-# 2:        N         0.02287973
+# 2:        N         0.02781014
 # 
-# > afd[, .(pct_solar_ang_gt_neg_0.265 = length(which(solar_elev_ang > -0.265)) / length(solar_elev_ang)), by = (DAYNIGHT)]
-# DAYNIGHT pct_solar_ang_gt_neg_0.265
+# > afd[, .(pct_solar_ang_gt_neg_0.265 = length(which(solar_ang > -0.265)) / length(solar_ang)), by = (daynight)]
+# daynight pct_solar_ang_gt_neg_0.265
 # 1:        D                 1.00000000
-# 2:        N                 0.02459592
+# 2:        N                 0.02970167
 
 
-
-# landcover ---------------------------------------------------------------
-
-# Just use the 11 landcovers that we used to derive our VPDt
-landcovers_of_interest <- c(1:2, 4:10, 12, 14)
-
-landcover <- raster::raster(x = "data/data_raw/GLDASp4_domveg_025d.nc4")
-landcover_area <- raster::area(landcover)
-s <- stack(landcover, landcover_area)
-# raster::origin(landcover) <- raster::origin(raster_template)
-landcover_table <- 
-  readr::read_csv(file = "data/data_raw/GLDASp4_domveg_025d_lookup-table.csv") %>% 
-  dplyr::mutate(landcover_split = str_replace(landcover, pattern = " ", replacement = "\n"))
-
-landcover_df <- 
-  s %>% 
-  as.data.frame(xy = TRUE) %>% 
-  setNames(c("lon", "lat", "index", "pixel_area_km2")) %>% 
-  dplyr::left_join(landcover_table, by = "index")
-
-landcover_DT <- as.data.table(landcover_df)
-data.table::setkeyv(landcover_DT, cols = c("lon", "lat"))
-
+# # landcover ---------------------------------------------------------------
+# area_per_lc_pixel <- fread("data/out/area-per-lc-pixel.csv")
+# 
+# afd
+# # Just use the 11 landcovers that we used to derive our VPDt
+# landcovers_of_interest <- c(1:2, 4:10, 12, 14)
+# 
+# lc <- terra::rast(x = "data/out/lc_koppen_2010_mode.tif")
+# 
+# landcover_area <- raster::area(landcover)
+# s <- stack(landcover, landcover_area)
+# # raster::origin(landcover) <- raster::origin(raster_template)
+# landcover_table <- 
+#   readr::read_csv(file = "data/data_raw/GLDASp4_domveg_025d_lookup-table.csv") %>% 
+#   dplyr::mutate(landcover_split = str_replace(landcover, pattern = " ", replacement = "\n"))
+# 
+# landcover_df <- 
+#   s %>% 
+#   as.data.frame(xy = TRUE) %>% 
+#   setNames(c("lon", "lat", "index", "pixel_area_km2")) %>% 
+#   dplyr::left_join(landcover_table, by = "index")
+# 
+# landcover_DT <- as.data.table(landcover_df)
+# data.table::setkeyv(landcover_DT, cols = c("lon", "lat"))
+# 
 
 # aggregate to lon lat ----------------------------------------------------
 
-misclassified_daynight_lon_lat <- 
-  afd[, .(solar_elev_gt_0 = length(which(solar_elev_ang > 0)),
-          solar_elev_lte_0 = length(which(solar_elev_ang <= 0)),
-          total_count = length(solar_elev_ang)), 
-      by = .(lon = lon_round, lat = lat_round, DAYNIGHT)]
-
-# misclassified_daynight_lon_lat <- misclassified_daynight_lon_lat[(DAYNIGHT == "D" & solar_elev_lte_0 > 0) | (DAYNIGHT == "N" & solar_elev_gt_0)]
-
-misclassified_count_landcover_lon_lat <- landcover_DT[misclassified_daynight_lon_lat]
-
-misclassified_count_landcover <- 
-  misclassified_count_landcover_lon_lat[, .(misclassified_count = ifelse(DAYNIGHT == "D", yes = sum(solar_elev_lte_0), no = sum(solar_elev_gt_0)),
-                                                                           total_count = sum(total_count)),
-                                                                       by = .(DAYNIGHT, landcover)]
-
-sum(misclassified_count_landcover$misclassified_count) / sum(misclassified_count_landcover$total_count)
-misclassified_count_landcover[, pct_misclassified := 100 * misclassified_count / total_count]
-
-misclassified_count_landcover
-readr::write_csv(misclassified_count_landcover, path = "tables/misclassified-by-landcover_all.csv")
-
-# DAYNIGHT                          landcover misclassified_count total_count pct_misclassified
-# 1:        D         Evergreen Broadleaf Forest                   0    11457925       0.000000000
-# 2:        N                              Ocean                 511       57720       0.885308385
-# 3:        D                              Ocean                   0      388554       0.000000000
-# 4:        D                       Mixed Forest                   0     1945192       0.000000000
-# 5:        N                       Mixed Forest                3974      329229       1.207062561
-# 6:        D                          Grassland                   0     3605098       0.000000000
-# 7:        D                      missing value                   0      355822       0.000000000
-# 8:        N                      missing value                 435       68132       0.638466506
-# 9:        N                          Grassland                 724      586353       0.123475108
-# 10:        D                    Open Shrublands                   0     2824721       0.000000000
-# 11:        N                    Open Shrublands               47788      874300       5.465858401
-# 12:        D         Deciduous Broadleaf Forest                   0     1307597       0.000000000
-# 13:        D                           Savannas                   0    17641307       0.000000000
-# 14:        D                  Closed Shrublands                   0       25817       0.000000000
-# 15:        N                  Closed Shrublands                   0        9049       0.000000000
-# 16:        D                       Snow and Ice                   0        3579       0.000000000
-# 17:        N                       Snow and Ice                   1         383       0.261096606
-# 18:        D        Evergreen Needleleaf Forest                   0     1022884       0.000000000
-# 19:        N         Evergreen Broadleaf Forest                  39     1492101       0.002613764
-# 20:        D       Barren or Sparsely Vegetated                   0      103858       0.000000000
-# 21:        D                           Cropland                   0     6121365       0.000000000
-# 22:        N                           Cropland                  27      521782       0.005174575
-# 23:        N        Evergreen Needleleaf Forest               59548      531348      11.206967938
-# 24:        D                     Woody Savannas                   0    16760130       0.000000000
-# 25:        N                     Woody Savannas                   0     1071021       0.000000000
-# 26:        D Cropland/Natural Vegetation Mosaic                   0      457787       0.000000000
-# 27:        N                           Savannas                   0     1635745       0.000000000
-# 28:        N Cropland/Natural Vegetation Mosaic                   0       77192       0.000000000
-# 29:        N         Deciduous Broadleaf Forest                   0      142119       0.000000000
-# 30:        D                 Urban and Built-Up                   0      106540       0.000000000
-# 31:        N                 Urban and Built-Up                  22       17986       0.122317358
-# 32:        D                  Permanent Wetland                   0       32699       0.000000000
-# 33:        N                  Permanent Wetland                 300        5271       5.691519636
-# 34:        N       Barren or Sparsely Vegetated                   0       79628       0.000000000
-# 35:        D                      Wooded Tundra                   0      183297       0.000000000
-# 36:        D        Deciduous Needleleaf Forest                   0      397843       0.000000000
-# 37:        N        Deciduous Needleleaf Forest               39425      177444      22.218277316
-# 38:        N                      Wooded Tundra               31707       77987      40.656776129
-# 39:        D                       Mixed Tundra                   0        3126       0.000000000
-# 40:        N                       Mixed Tundra                 383        1333      28.732183046
-# DAYNIGHT                          landcover misclassified_count total_count pct_misclassified
+solar_ang_daynight_mismatch_lon_lat <- 
+  afd[, .(n = .N,
+          n_dn_detect_day = sum(dn_detect == "day"),
+          n_dn_detect_night = sum(dn_detect == "night")), 
+      by = .(lon = x_lc, lat = y_lc, lc, daynight)]
 
 
-misclassified_by_landcover_table <- 
-  misclassified_count_landcover %>% 
-  dplyr::filter(misclassified_count > 0) %>% 
-  dplyr::arrange(desc(pct_misclassified))
+solar_ang_daynight_mismatch_lc <- 
+  solar_ang_daynight_mismatch_lon_lat[, .(mismatch_count = ifelse(daynight == "D", 
+                                                                  yes = sum(n_dn_detect_night), 
+                                                                  no = sum(n_dn_detect_day)),
+                                          total_count = sum(n)),
+                                      by = .(daynight, lc)]
 
-readr::write_csv(misclassified_by_landcover_table, path = "tables/misclassified-by-landcover_just-categories-with-misclassifications.csv")
-# DAYNIGHT                   landcover misclassified_count total_count pct_misclassified
-# 1         N               Wooded Tundra               31707       77987      40.656776129
-# 2         N                Mixed Tundra                 383        1333      28.732183046
-# 3         N Deciduous Needleleaf Forest               39425      177444      22.218277316
-# 4         N Evergreen Needleleaf Forest               59548      531348      11.206967938
-# 5         N           Permanent Wetland                 300        5271       5.691519636
-# 6         N             Open Shrublands               47788      874300       5.465858401
-# 7         N                Mixed Forest                3974      329229       1.207062561
-# 8         N                       Ocean                 511       57720       0.885308385
-# 9         N               missing value                 435       68132       0.638466506
-# 10        N                Snow and Ice                   1         383       0.261096606
-# 11        N                   Grassland                 724      586353       0.123475108
-# 12        N          Urban and Built-Up                  22       17986       0.122317358
-# 13        N                    Cropland                  27      521782       0.005174575
-# 14        N  Evergreen Broadleaf Forest                  39     1492101       0.002613764
+solar_ang_daynight_mismatch_lc <-
+  solar_ang_daynight_mismatch_lc %>% 
+  dplyr::mutate(pct_mismatch = 100 * mismatch_count / total_count) %>% 
+  dplyr::left_join(lc_lookup, by = c(lc = "koppen_modis_code")) %>% 
+  dplyr::filter(complete.cases(.)) %>% 
+  dplyr::select(lc_name, lc, daynight, mismatch_count, total_count, pct_mismatch) %>% 
+  dplyr::arrange(lc_name, daynight)
 
+solar_ang_daynight_mismatch_lc
+
+write.csv(x = solar_ang_daynight_mismatch_lc, file = "tables/daynight-solar-ang-mismatch-by-landcover_all.csv")
+
+# lc_name  lc daynight mismatch_count total_count pct_mismatch
+# 1:                                 Arid Croplands 212        D              0     1312912  0.000000000
+# 2:                                 Arid Croplands 212        N              0      109411  0.000000000
+# 3:                                Arid Grasslands 210        D              0     4376564  0.000000000
+# 4:                                Arid Grasslands 210        N              0      762938  0.000000000
+# 5:                           Arid Open Shrublands 207        D              0     1398734  0.000000000
+# 6:                           Arid Open Shrublands 207        N            135      495496  0.027245427
+# 7:                                  Arid Savannas 209        D              0      510243  0.000000000
+# 8:                                  Arid Savannas 209        N             57      108635  0.052469278
+# 9:                            Arid Woody Savannas 208        D              0       87705  0.000000000
+# 10:                            Arid Woody Savannas 208        N            322       27271  1.180741447
+# 11:                               Boreal Croplands 412        D              0     2100519  0.000000000
+# 12:                               Boreal Croplands 412        N             27      109491  0.024659561
+# 13:            Boreal Evergreen Needleleaf Forests 401        D              0      208663  0.000000000
+# 14:            Boreal Evergreen Needleleaf Forests 401        N           9467      113460  8.343909748
+# 15:                              Boreal Grasslands 410        D              0      856852  0.000000000
+# 16:                              Boreal Grasslands 410        N           6520      148452  4.391992024
+# 17:                                Boreal Savannas 409        D              0     1407681  0.000000000
+# 18:                                Boreal Savannas 409        N          92554      356434 25.966658624
+# 19:                          Boreal Woody Savannas 408        D              0     1321425  0.000000000
+# 20:                          Boreal Woody Savannas 408        N          66698      477790 13.959689403
+# 21: Equatorial Cropland Natural Vegetation Mosaics 114        D              0      533715  0.000000000
+# 22: Equatorial Cropland Natural Vegetation Mosaics 114        N              0       50666  0.000000000
+# 23:                           Equatorial Croplands 112        D              0     2129593  0.000000000
+# 24:                           Equatorial Croplands 112        N              0      287210  0.000000000
+# 25:         Equatorial Deciduous Broadleaf Forests 104        D              0     2105226  0.000000000
+# 26:         Equatorial Deciduous Broadleaf Forests 104        N              0      202319  0.000000000
+# 27:         Equatorial Evergreen Broadleaf Forests 102        D              0     5850366  0.000000000
+# 28:         Equatorial Evergreen Broadleaf Forests 102        N              0      847783  0.000000000
+# 29:                          Equatorial Grasslands 110        D              0     8309149  0.000000000
+# 30:                          Equatorial Grasslands 110        N              0     1040689  0.000000000
+# 31:                  Equatorial Permanent Wetlands 111        D              0      211799  0.000000000
+# 32:                  Equatorial Permanent Wetlands 111        N              0       30271  0.000000000
+# 33:                            Equatorial Savannas 109        D              0    20167710  0.000000000
+# 34:                            Equatorial Savannas 109        N              0     1903748  0.000000000
+# 35:                      Equatorial Woody Savannas 108        D              0     5827074  0.000000000
+# 36:                      Equatorial Woody Savannas 108        N              0      513873  0.000000000
+# 37:                            Temperate Croplands 312        D              0      985830  0.000000000
+# 38:                            Temperate Croplands 312        N              0      127680  0.000000000
+# 39:          Temperate Deciduous Broadleaf Forests 304        D              0      704854  0.000000000
+# 40:          Temperate Deciduous Broadleaf Forests 304        N              0       49557  0.000000000
+# 41:          Temperate Evergreen Broadleaf Forests 302        D              0     1173352  0.000000000
+# 42:          Temperate Evergreen Broadleaf Forests 302        N              0      159193  0.000000000
+# 43:         Temperate Evergreen Needleleaf Forests 301        D              0      135208  0.000000000
+# 44:         Temperate Evergreen Needleleaf Forests 301        N              0       82128  0.000000000
+# 45:                           Temperate Grasslands 310        D              0     2888246  0.000000000
+# 46:                           Temperate Grasslands 310        N              0      240408  0.000000000
+# 47:                             Temperate Savannas 309        D              0     4240447  0.000000000
+# 48:                             Temperate Savannas 309        N              0      306332  0.000000000
+# 49:                       Temperate Woody Savannas 308        D              0     2473224  0.000000000
+# 50:                       Temperate Woody Savannas 308        N              5      165012  0.003030083
+
+
+solar_ang_daynight_mismatch_lc_table <- 
+  solar_ang_daynight_mismatch_lc %>% 
+  dplyr::filter(mismatch_count > 0) %>% 
+  dplyr::arrange(desc(pct_mismatch))
+
+readr::write_csv(solar_ang_daynight_mismatch_lc_table, path = "tables/daynight-solar-ang-mismatch-by-landcover_just-landcovers-with-mismatches.csv")
+
+# lc_name  lc daynight mismatch_count total_count pct_mismatch
+# 1:                     Boreal Savannas 409        N          92554      356434 25.966658624
+# 2:               Boreal Woody Savannas 408        N          66698      477790 13.959689403
+# 3: Boreal Evergreen Needleleaf Forests 401        N           9467      113460  8.343909748
+# 4:                   Boreal Grasslands 410        N           6520      148452  4.391992024
+# 5:                 Arid Woody Savannas 208        N            322       27271  1.180741447
+# 6:                       Arid Savannas 209        N             57      108635  0.052469278
+# 7:                Arid Open Shrublands 207        N            135      495496  0.027245427
+# 8:                    Boreal Croplands 412        N             27      109491  0.024659561
+# 9:            Temperate Woody Savannas 308        N              5      165012  0.003030083
+
+# by koppen --------------------------------------------------------------
+
+solar_ang_daynight_mismatch_lon_lat[, koppen := substr(lc, start = 1, stop = 1)]
+
+solar_ang_daynight_mismatch_koppen <- 
+  solar_ang_daynight_mismatch_lon_lat[, .(mismatch_count = ifelse(daynight == "D", 
+                                                                  yes = sum(n_dn_detect_night), 
+                                                                  no = sum(n_dn_detect_day)),
+                                          total_count = sum(n)),
+                                      by = .(daynight, koppen)]
+
+solar_ang_daynight_mismatch_koppen <-
+  solar_ang_daynight_mismatch_koppen %>% 
+  dplyr::filter(complete.cases(.)) 
+
+write.csv(x = solar_ang_daynight_mismatch_koppen, file = "tables/daynight-solar-ang-mismatch-by-koppen_all.csv", row.names = FALSE)
+
+# daynight koppen mismatch_count total_count
+# 1:        D      3              0    13629379
+# 2:        D      1              0    46403564
+# 3:        D      2              0     8047423
+# 4:        N      1              0     4956408
+# 5:        D      4              0     7388627
+# 6:        N      3              5     1203238
+# 7:        N      2            523     1623366
+# 8:        N      4         258236     1596051
+# 9:        N      5           2772       13372
+# 10:        D      5              0       74619
+
+burnable_koppen <- 
+  lc_lookup %>% 
+  mutate(koppen = substr(koppen_modis_code, start = 1, stop = 1)) %>% 
+  pull(koppen) %>% 
+  unique()
+
+solar_ang_daynight_mismatch_koppen_table <-
+  solar_ang_daynight_mismatch_koppen %>% 
+  dplyr::filter(mismatch_count > 0 & koppen %in% burnable_koppen) %>%
+  dplyr::mutate(pct_mismatch = 100 * mismatch_count / total_count)
+
+# daynight koppen mismatch_count total_count pct_mismatch
+# 1:        N      3              5     1203238 4.155454e-04
+# 2:        N      2            523     1623366 3.221701e-02
+# 3:        N      4         258236     1596051 1.617968e+01
+
+write.csv(x = solar_ang_daynight_mismatch_koppen_table, file = "tables/daynight-solar-ang-mismatch-by-koppen_just-koppen-with-mismatches.csv", row.names = FALSE)
 
 # by latitude -------------------------------------------------------------
 
-misclassified_count_landcover_lon_lat[, `:=`(lat_round = round(lat / 5) * 5)]
+solar_ang_daynight_mismatch_lon_lat[, lat_round := round(lat / 5) * 5]
 
-misclassified_by_lat <-
-  misclassified_count_landcover_lon_lat[, .(misclassified_count = ifelse(DAYNIGHT == "D", yes = sum(solar_elev_lte_0), no = sum(solar_elev_gt_0)),
-                                          total_count = sum(total_count)),
-                                      by = .(lat = lat_round, DAYNIGHT)]
+mismatch_by_lat <-
+  solar_ang_daynight_mismatch_lon_lat[, .(mismatch_count = ifelse(daynight == "D", 
+                                                                  yes = sum(n_dn_detect_night), 
+                                                                  no = sum(n_dn_detect_day)),
+                                          total_count = sum(n)),
+                                      by = .(daynight, lat_round)]
 
-readr::write_csv(misclassified_by_lat, path = "tables/misclassified-by-lat_all.csv")
+write.csv(mismatch_by_lat, file = "tables/daynight-solar-ang-mismatch-by-lat_all.csv", row.names = FALSE)
 
-misclassified_by_lat_table <-
-  misclassified_by_lat %>% 
-  dplyr::filter(misclassified_count > 0) %>%
-  dplyr::mutate(pct_misclassified = 100 * misclassified_count / total_count)
+mismatch_by_lat_table <-
+  mismatch_by_lat %>% 
+  dplyr::filter(mismatch_count > 0) %>%
+  dplyr::mutate(pct_mismatch = 100 * mismatch_count / total_count)
 
-readr::write_csv(misclassified_by_lat_table, path = "tables/misclassified-by-lat_just-categories-with-misclassifications.csv")
+write.csv(mismatch_by_lat_table, file = "tables/daynight-solar-ang-mismatch-by-lat_just-landcovers-with-mismatches.csv", row.names = FALSE)
 # Latitude rounded to the nearest 5 degree
-# lat DAYNIGHT misclassified_count total_count pct_misclassified
-# 1  55        N                2063      301062         0.6852409
-# 2  60        N               46343      327013        14.1716079
-# 3  65        N              129761      294424        44.0728337
-# 4  70        N                6717       11666        57.5775759
+# daynight lat_round mismatch_count total_count pct_mismatch
+# 1:        N        55           2491      322787    0.7717163
+# 2:        N        60          66480      445789   14.9128848
+# 3:        N        65         176324      376927   46.7793498
+# 4:        N        70          18820       27591   68.2106484

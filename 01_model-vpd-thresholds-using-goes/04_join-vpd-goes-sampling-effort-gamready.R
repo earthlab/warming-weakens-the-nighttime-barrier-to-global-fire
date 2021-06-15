@@ -1,3 +1,7 @@
+# This script joins the GOES active fire data (already collected and cooked using 01_get-af-metadata.R and 02_get-af-data_aws.R)
+# with the ERA-5 vapor pressure deficit (VPD) data extracted by John Abatzoglou using this repo: https://github.com/abatz/VPD for
+# each hour within each FIRED events' spatial and temporal extent.
+
 library(data.table)
 library(stringr)
 library(lubridate)

@@ -50,7 +50,8 @@ for(i in 1:nrow(gamready_files)){
   
   out_fn_base <- 
     str_replace(f, "data/out/gamready/", "") %>%
-    str_replace("_gamready.csv", "")
+    str_replace("_gamready.csv", "") %>% 
+    basename()
   
   outname <- here("data", "mods", paste0(out_fn_base, "-gam.rds"))
   

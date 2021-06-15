@@ -12,7 +12,7 @@ last_date_df <- long_pts %>%
             first_date = min(datetime_utc) - 60 * 60 * 24 * 1)
 
 split_events <- long_pts %>%
-  select(datetime_utc, n, id, vpd_kPa, Event,
+  dplyr::select(datetime_utc, n, id, vpd_kPa, Event,
          solar_radiation_w_per_m2) %>%
   left_join(last_date_df) %>%
   filter(datetime_utc <= last_date, 
@@ -55,6 +55,6 @@ plot_list <- split_events %>%
 
 p <- wrap_plots(plot_list, ncol = 1)
 p
-ggsave("fig/case-study-ts.pdf", plot = p, width = 8, height = 6.5)
-ggsave("fig/case-study-ts.png", plot = p, width = 8, height = 6.5)
+ggsave("figs/case-study-ts.pdf", plot = p, width = 8, height = 6.5)
+ggsave("figs/case-study-ts.png", plot = p, width = 8, height = 6.5)
 

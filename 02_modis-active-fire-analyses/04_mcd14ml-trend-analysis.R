@@ -202,13 +202,12 @@ system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-by-month-landcover
 
 
 ###
-
-
 global_n_gg <-
   ggplot(afd_global_summary, aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() +
   geom_smooth() +
   theme_bw() +
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   labs(x = "Date (monthly increments)",
        y = "Number of detections per overpass per million square km",
        color = "Day/night")
@@ -220,6 +219,7 @@ ggsave(filename = "figs/mcd14ml_n-trend_global.png", plot = global_n_gg)
 global_frp_gg <-
   ggplot(afd_global_summary, aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() +
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   geom_smooth() +
   theme_bw() +
   labs(x = "Date (monthly increments)",
@@ -240,12 +240,24 @@ global_prop_n_gg <-
 
 global_prop_n_gg
 
+global_prop_n_gg <-
+  ggplot(afd_global_summary_wide, aes(x = year_month, y = prop_n_night)) +
+  geom_line() +
+  geom_smooth() +
+  labs(x = "Date (monthly increments)",
+       y = "Proportion of global MODIS detections at night") +
+  theme_bw() +
+  facet_wrap(facets = vars(acq_month))
+
+global_prop_n_gg
+
 ggsave(filename = "figs/mcd14ml_prop-n-trend_global.png", plot = global_prop_n_gg)
 
 # koppen 1 Tropical
 tropical_n_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 1), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -257,6 +269,7 @@ tropical_n_gg <-
 arid_n_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 2), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -268,6 +281,7 @@ arid_n_gg <-
 temperate_n_gg <- 
   ggplot(dplyr::filter(afd_summary, koppen == 3), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -279,6 +293,7 @@ temperate_n_gg <-
 cold_n_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 4), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -303,6 +318,7 @@ ggsave(filename = "figs/mcd14ml_n-trend_cold.png", plot = cold_n_gg)
 tropical_frp_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 1), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -314,6 +330,7 @@ tropical_frp_gg <-
 arid_frp_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 2), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -325,6 +342,7 @@ arid_frp_gg <-
 temperate_frp_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 3), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -336,6 +354,7 @@ temperate_frp_gg <-
 cold_frp_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 4), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -350,19 +369,21 @@ ggsave(filename = "figs/mcd14ml_frp-trend_cold.png", plot = cold_frp_gg)
 
 
 ### Formal analysis
-gam_data <- 
-  afd_global_summary_wide %>% 
-  dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
 
 # https://fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
-m1 <- gam(prop_n_night ~ s(acq_month, bs = "cc", k = 12) + s(time), 
-          data = gam_data, 
-          correlation = corARMA(form = ~ 1, p = 1))
-plot(m1)
+gam_data <-
+  afd_global_summary_wide %>%
+  dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
+  
+m1 <- gamm(prop_n_night ~ s(acq_month, bs = "cc", k = 12) + ti(time),
+          data = gam_data,
+          correlation = corARMA(form = ~ time, p = 1))
 
-summary(m1)
+plot(m1$gam, pages = 1)
+
+summary(m1$gam)
 
 layout(matrix(1:2, ncol = 2))
-acf(resid(m1), lag.max = 36, main = "ACF")
-pacf(resid(m1), lag.max = 36, main = "pACF")
+acf(resid(m1$lme), lag.max = 10*12, main = "ACF")
+pacf(resid(m1$lme), lag.max = 10*12, main = "pACF")
 layout(1)

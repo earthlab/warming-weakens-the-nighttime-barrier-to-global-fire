@@ -2,6 +2,7 @@ library(dplyr)
 library(terra)
 library(gt)
 library(blastula)
+library(data.table)
 
 climatology_trend <- 
   terra::rast("data/out/climatology/nights_trend.nc") %>% 
@@ -48,11 +49,12 @@ high_trend_flammable_nights_area <- function(lc_climatology, thresh) {
   landcover_trends <-
     trend_df %>% 
     dplyr::group_by(lc) %>% 
-    dplyr::summarize(gt_thresh_area_km2 = sum(area_m2) / 1e6) %>% 
+    dplyr::summarize(gt_thresh_area_Mkm2 = sum(area_m2) / 1e12) %>% 
     dplyr::left_join(lc_area, by = "lc") %>%
-    dplyr::mutate(pct_big_trend = gt_thresh_area_km2 / area_km2) %>% 
+    dplyr::mutate(area_Mkm2 = area_km2 / 1e6) %>% 
+    dplyr::mutate(pct_big_trend = gt_thresh_area_Mkm2 / area_Mkm2) %>% 
     dplyr::left_join(lc_burnable, by = c(lc = "koppen_modis_code")) %>% 
-    dplyr::select(lc, gt_thresh_area_km2, area_km2, pct_big_trend, lc_name)
+    dplyr::select(lc, gt_thresh_area_Mkm2, area_Mkm2, pct_big_trend, lc_name)
   
   landcover_trends
   
@@ -62,11 +64,11 @@ high_trend_flammable_nights_area <- function(lc_climatology, thresh) {
   # increases in flammable nights
   overall_trend <-
     trend_df %>% 
-    summarize(gt_thresh_area_km2 = sum(area_m2) / 1e6) %>% 
-    mutate(area_km2 = sum(lc_area$area_km2)) %>% 
-    mutate(pct_big_trend = gt_thresh_area_km2 / area_km2) %>% 
+    summarize(gt_thresh_area_Mkm2 = sum(area_m2) / 1e12) %>% 
+    mutate(area_Mkm2 = sum(lc_area$area_km2) / 1e6) %>% 
+    mutate(pct_big_trend = gt_thresh_area_Mkm2 / area_Mkm2) %>% 
     mutate(lc = NA, lc_name = "All burnable landcovers") %>% 
-    dplyr::select(lc, gt_thresh_area_km2, area_km2, pct_big_trend, lc_name)
+    dplyr::select(lc, gt_thresh_area_Mkm2, area_Mkm2, pct_big_trend, lc_name)
   
   overall_trend
   
@@ -75,7 +77,7 @@ high_trend_flammable_nights_area <- function(lc_climatology, thresh) {
   final_table <- 
     rbind(landcover_trends, overall_trend) %>% 
     dplyr::mutate(pct_big_trend = round(pct_big_trend * 100, 1)) %>% 
-    setNames(c("Index", paste0(">=", thresh, " flammable nights area (km^2)"), "Total area (km^2)", paste0("Percent >=", thresh, " flammable nights (%)"), "Landcover")) %>% 
+    setNames(c("Index", paste0(">=", thresh, " flammable nights area (Mkm^2)"), "Total area (Mkm^2)", paste0("Percent >=", thresh, " flammable nights (%)"), "Landcover")) %>% 
     gt()
   
   email_table <- gt::as_raw_html(final_table)

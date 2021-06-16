@@ -49,7 +49,7 @@ if(!file.exists("data/out/goes16-flag-mask-meanings.csv")) {
 }
 
 fire_flags <- 
-  readr::read_csv(file = "data/data_output/goes16-flag-mask-meanings.csv") %>% 
+  readr::read_csv(file = "data/out/goes16-flag-mask-meanings.csv") %>% 
   dplyr::filter(stringr::str_detect(flag_meanings, pattern = "_fire_pixel")) %>% 
   dplyr::filter(stringr::str_detect(flag_meanings, pattern = "no_fire_pixel", negate = TRUE)) %>% 
   dplyr::pull(flag_vals)
@@ -100,12 +100,12 @@ get_goes_points <- function(aws_path, filename, scan_center, local_path) {
                   sinu_y = sf::st_coordinates(.)[, 2]) %>%
     sf::st_drop_geometry()
   
-  readr::write_csv(x = goes_modis_sinu, file = glue::glue("data/data_output/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"))
+  readr::write_csv(x = goes_modis_sinu, file = glue::glue("data/out/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"))
   
-  system2(command = "aws", args = glue::glue("s3 cp data/data_output/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv s3://earthlab-mkoontz/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"), stdout = FALSE)
+  system2(command = "aws", args = glue::glue("s3 cp data/out/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv s3://earthlab-mkoontz/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"), stdout = FALSE)
   
   unlink(local_path)
-  unlink(glue::glue("data/data_output/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"))
+  unlink(glue::glue("data/out/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"))
   
   rm(goes)
   rm(goes_modis_sinu)
@@ -149,10 +149,10 @@ get_crs_info <- function(aws_path, filename, scan_center, local_path) {
 }
 
 # Create directory to hold the raw GOES-16 active fire data until it gets deleted
-dir.create("data/data_raw/goes16/", showWarnings = FALSE)
+dir.create("data/raw/goes16/", showWarnings = FALSE)
 
 # Create directory to hold all the processed GOES-16 active fire data
-dir.create("data/data_output/goes16/", showWarnings = FALSE)
+dir.create("data/out/goes16/", showWarnings = FALSE)
 
 # Get the file names of the data that have already been processed
 processed_goes <- 
@@ -202,7 +202,7 @@ furrr::future_map(.x = subbatches, .f = function(this_batch) {
       aws_path <- this_goes$aws_path
       filename <- stringr::str_sub(this_goes$filename, start = 1, end = -4)
       scan_center <- this_goes$scan_center
-      local_path <- glue::glue("data/data_raw/goes16/{scan_center}_{filename}.nc")
+      local_path <- glue::glue("data/raw/goes16/{scan_center}_{filename}.nc")
       
       get_goes_points(aws_path, filename, scan_center, local_path)
       

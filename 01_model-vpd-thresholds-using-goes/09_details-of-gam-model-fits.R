@@ -6,6 +6,8 @@ library(stringr)
 library(data.table)
 library(readr)
 
+dir.create("tables", showWarnings = FALSE)
+
 lc_lookup <- read.csv("data/out/koppen-modis-landcover-lookup-table.csv")
 lc <- read.csv("data/out/area-per-lc.csv") %>% left_join(lc_lookup, by = c(lc = "koppen_modis_code"))
 
@@ -60,5 +62,5 @@ out <-
   
 out
 
-write.csv(x = out, file = "data/out/gam-model-properties.csv", row.names = FALSE)
-system2(command = "aws", args = "s3 cp data/out/gam-model-properties.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/gam-model-properties.csv")
+write.csv(x = out, file = "tables/gam-model-properties.csv", row.names = FALSE)
+system2(command = "aws", args = "s3 cp tables/gam-model-properties.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/tables/gam-model-properties.csv")

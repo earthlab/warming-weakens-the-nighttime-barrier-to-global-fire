@@ -240,6 +240,7 @@ night_fire_regime_table <-
   dplyr::mutate(area_Mkm2 = area_km2 / 1e6) %>% 
   dplyr::arrange(dplyr::desc(pct_night_afd)) %>% 
   dplyr::select(-lc) %>% 
+  dplyr::arrange(vpd_thresh_hpa) %>% 
   dplyr::select(landcover, 
                 area_Mkm2,
                 detections_per_overpass_per_Mkm2_day, 
@@ -255,5 +256,5 @@ night_fire_regime_table <-
 
 night_fire_regime_table
 
-dir.create("tables")
+dir.create("tables", showWarnings = FALSE)
 write.csv(x = night_fire_regime_table, file = "tables/night-fire-regime-table.csv", row.names = FALSE)

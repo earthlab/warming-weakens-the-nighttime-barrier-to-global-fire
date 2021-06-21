@@ -99,7 +99,7 @@ for(f in vpd_files){
       # THIRD KEY STEP HERE for getting dataframe into analysis-ready format is to join with the sampling effort
       # dataframe (sampling_effort)
       
-      sampling_effort <- data.table::fread("data/sampling-effort-goes16.csv", key = "rounded_datetime")
+      sampling_effort <- data.table::fread("data/out/sampling-effort-goes16.csv", key = "rounded_datetime")
       
       vpds_goes_sampling_effort <- sampling_effort[vpds_goes_trimmed]
       
@@ -114,8 +114,11 @@ for(f in vpd_files){
       # fire_scenes_per_hour/n_scenes_per_hour by summing each component (successes and trials) across unique
       # combinations of nid and VPD_hPa
       
+      # Note that n_obs_before_suff_stat is the number of observations before collapsing into sufficient statistic
+      # Essentially, we want to know how good our effort to use sufficient statistics was
       vpds_goes_gam_ready <- vpds_goes_sampling_effort[, .(fire_scenes = sum(fire_scenes_per_hour),
-                                                           n_scenes = sum(n_scenes_per_hour)),
+                                                           n_scenes = sum(n_scenes_per_hour),
+                                                           n_obs_before_suff_stat = .N), 
                                                        by = .(nid, VPD_hPa)]
       
       # Write to disk

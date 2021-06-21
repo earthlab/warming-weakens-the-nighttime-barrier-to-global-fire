@@ -26,7 +26,8 @@ event_count <- lapply(1:nrow(gamready_files), FUN = function(i) {
   if(!file.exists(here::here("data", "mods", paste0(gamready_files$lc_name[i], "-gam.rds")))) {
     return(data.frame(lc_name = gsub(pattern = "_", replacement = " ", x = gamready_files$lc_name[i]), 
                       n_events_orig = length(unique(gamready_data$nid)),
-                      n_obs_orig = nrow(gamready_data),
+                      n_obs_orig = sum(gamready_data$n_obs_before_suff_stat),
+                      n_obs_suff_stat = nrow(gamready_data),
                       n_events_subset =  NA,
                       n_obs_subset = NA))
     
@@ -36,7 +37,8 @@ event_count <- lapply(1:nrow(gamready_files), FUN = function(i) {
 
   return(data.frame(lc_name = gsub(pattern = "_", replacement = " ", x = gamready_files$lc_name[i]), 
                     n_events_orig = length(unique(gamready_data$nid)),
-                    n_obs_orig = nrow(gamready_data),
+                    n_obs_orig = sum(gamready_data$n_obs_before_suff_stat),
+                    n_obs_suff_stat = nrow(gamready_data),
                     n_events_subset =   length(unique(gam_fit$model$nid)),
                     n_obs_subset = nrow(gam_fit$model)))
   
@@ -58,7 +60,7 @@ out <-
   dplyr::arrange(order) %>% 
   dplyr::mutate(cum_area_Mkm2 = cumsum(area_Mkm2)) %>% 
   dplyr::mutate(cum_pct_total_area = cum_area_Mkm2 / sum(.$area_Mkm2, na.rm = TRUE)) %>% 
-  dplyr::select(lc, lc_name, area_Mkm2, cum_area_Mkm2, cum_pct_total_area, n_events_orig, n_obs_orig, n_events_subset, n_obs_subset, vpd_thresh_hpa, sd)
+  dplyr::select(lc, lc_name, area_Mkm2, cum_area_Mkm2, cum_pct_total_area, n_events_orig, n_obs_orig, n_obs_suff_stat, n_events_subset, n_obs_subset, vpd_thresh_hpa, sd)
   
 out
 

@@ -52,7 +52,7 @@ partial_df <- predictions %>%
             n = n()) %>%
   ungroup %>%
   mutate(color_group = gsub( " .*$", "", lc_name), 
-         facet_label = paste(color_group, "ecoregions"))
+         facet_label = paste(color_group, "landcovers"))
 
 plot_df <- partial_df %>%
   left_join(thresholds) %>%

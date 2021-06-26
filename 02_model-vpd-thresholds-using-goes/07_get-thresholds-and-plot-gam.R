@@ -35,11 +35,13 @@ thresholds <- predictions %>%
   arrange(vpd_thresh_hpa)
 
 thresholds %>%
-  write_csv(here("data", "mods", "zero-goes-af-vpd-thresholds.csv"))
+  write_csv(here("data", "out", "zero-goes-af-vpd-thresholds.csv"))
 
 
 
 # Visualize partial effects -----------------------------------------------
+
+dir.create(here("figs"), showWarnings = FALSE)
 
 partial_df <- predictions %>%
   mutate(p = plogis(logit_p)) %>%
@@ -50,7 +52,7 @@ partial_df <- predictions %>%
             n = n()) %>%
   ungroup %>%
   mutate(color_group = gsub( " .*$", "", lc_name), 
-         facet_label = paste(color_group, "ecoregions"))
+         facet_label = paste(color_group, "landcovers"))
 
 plot_df <- partial_df %>%
   left_join(thresholds) %>%
@@ -70,12 +72,35 @@ partial_plot <- plot_df %>%
   facet_wrap(~reorder(facet_label, vpd_thresh_hpa))
 partial_plot
 
-dir.create(here("images"), showWarnings = FALSE)
 ggsave(plot = partial_plot, 
-       filename = here("images", "vpd-partial-effects.pdf"), 
+       filename = here("figs", "vpd-partial-effects.pdf"), 
        width = 7.5, height = 3.5)
 ggsave(plot = partial_plot, 
-       filename = here("images", "vpd-partial-effects.png"), 
+       filename = here("figs", "vpd-partial-effects.png"), 
+       width = 7.5, height = 3.5)
+
+# Combine Koppen classes into single facet per Jennifer/Adam request
+partial_plot_single <- 
+  plot_df %>%
+  ggplot(aes(VPD_hPa, mu, color = facet_label)) +
+  geom_path(aes(group = lc_name), lwd = 1.0) +
+  geom_ribbon(aes(ymin = lo, ymax = hi, group = lc_name), 
+              color = NA, alpha = 0.02) +
+  theme_minimal() + 
+  # theme(legend.position = "none", 
+  #       panel.grid.minor = element_blank(), 
+  #       axis.title.x = element_text(hjust = .24)) + 
+  labs(x = "Vapor pressure deficit (hPa)",
+       y = "Active fire detection probability",
+       color = "Köppen-Geiger\nclimate classifications")
+
+partial_plot_single
+
+ggsave(plot = partial_plot_single, 
+       filename = here("figs", "vpd-partial-effects_single-panel.pdf"), 
+       width = 7.5, height = 3.5)
+ggsave(plot = partial_plot_single, 
+       filename = here("figs", "vpd-partial-effects_single-panel.png"), 
        width = 7.5, height = 3.5)
 
 
@@ -91,11 +116,11 @@ bayes_plot <- predictions %>%
   xlab("Vapor pressure deficit (hPa)") + 
   ylab("Active fire detection probability") + 
   facet_wrap(~fct_reorder(lc_name, vpd_thresh_hpa), 
-             nrow = 5, , labeller = label_wrap_gen()) + 
+             nrow = 5, labeller = label_wrap_gen()) + 
   geom_path(data = partial_df %>%
               mutate(lc_name = trimws(gsub("\\(.*", "", lc_name))) %>%
               left_join(thresholds), 
             aes(y = mu), size = 1)
 bayes_plot
-ggsave(here("images", "bayes_plot.png"), bayes_plot, width = 9, height = 6)
-ggsave(here("images", "bayes_plot.pdf"), bayes_plot, width = 5, height = 6)
+ggsave(here("figs", "bayes_plot.png"), bayes_plot, width = 9, height = 6)
+ggsave(here("figs", "bayes_plot.pdf"), bayes_plot, width = 5, height = 6)

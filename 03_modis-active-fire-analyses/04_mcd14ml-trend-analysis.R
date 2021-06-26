@@ -81,14 +81,31 @@ afd_global_summary <-
   dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / sum(lc_area$area_km2)) * 1e6) %>% 
   dplyr::filter(acq_year >= 2003)
 
-write.csv(afd_global_summary, "data/out/mcd14ml-global-trend-by-month.csv")
 
 afd_global_summary_wide <-
   afd_global_summary %>% 
   tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("year_month", "acq_year", "acq_month")) %>% 
   dplyr::mutate(prop_n_night = night  / (night + day))
 
-write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-by-month_wide.csv")
+
+afd_global_summary_by_year <-
+  afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), n_per_op_per_px = mean(n_per_op),
+          total_frp = sum(sum_frp),
+          n_px = .N,
+          n_op = sum(op)), 
+      by = .(acq_year, dn_detect)] %>% 
+  dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
+                mean_frp_per_px = total_frp / n_px) %>% 
+  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / sum(lc_area$area_km2)) * 1e6) %>% 
+  dplyr::filter(acq_year >= 2003)
+
+
+afd_global_summary_by_year_wide <-
+  afd_global_summary_by_year %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = c("total_n_per_op", "mean_frp_per_detection"), id_cols = c("acq_year")) %>% 
+  dplyr::mutate(prop_n_night = total_n_per_op_night  / (total_n_per_op_night + total_n_per_op_day))
+
+afd_global_summary_by_year_wide
 
 ### end global aggregations ###
 
@@ -120,15 +137,10 @@ afd_koppen_summary <-
 
 afd_koppen_summary
 
-write.csv(afd_koppen_summary, "data/out/mcd14ml-trend-by-month-koppen.csv")
-
 afd_koppen_summary_wide <-
   afd_koppen_summary %>% 
   tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("koppen", "year_month", "acq_year", "acq_month")) %>% 
   dplyr::mutate(prop_n_night = night  / (night + day))
-
-write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-by-month-koppen_wide.csv")
-
 
 ### end aggregations by Koppen class ###
 
@@ -154,23 +166,48 @@ afd_summary <-
 
 afd_summary
 
-write.csv(afd_summary, "data/out/mcd14ml-trend-by-month-landcover.csv")
-
 afd_landcover_summary_wide <-
   afd_summary %>% 
   tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("lc", "year_month", "acq_year", "acq_month")) %>% 
   dplyr::mutate(prop_n_night = night  / (night + day))
 
-write.csv(afd_landcover_summary_wide, "data/out/mcd14ml-trend-by-month-landcover_wide.csv")
-
-
 ### end aggregations by landcover (Koppen + MODIS) ###
 
+### write to disk and upload
+
+write.csv(afd_global_summary, "data/out/mcd14ml-global-trend-by-month.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-by-month.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-by-month.csv")
+
+write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-by-month_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-by-month_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-by-month_wide.csv")
+
+write.csv(afd_global_summary_by_year, "data/out/mcd14ml-global-trend-by-year.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-by-year.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-by-year.csv")
+
+write.csv(afd_global_summary_by_year_wide, "data/out/mcd14ml-global-trend-by-year_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-by-year_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-by-year_wide.csv")
+
+write.csv(afd_koppen_summary, "data/out/mcd14ml-trend-by-month-koppen.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-by-month-koppen.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-by-month-koppen.csv")
+
+write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-by-month-koppen_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-by-month-koppen_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-by-month-koppen_wide.csv")
+
+write.csv(afd_summary, "data/out/mcd14ml-trend-by-month-landcover.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-by-month-landcover.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-by-month-landcover.csv")
+
+write.csv(afd_landcover_summary_wide, "data/out/mcd14ml-trend-by-month-landcover_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-by-month-landcover_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-by-month-landcover_wide.csv")
+
+
+
+###
 global_n_gg <-
   ggplot(afd_global_summary, aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() +
   geom_smooth() +
   theme_bw() +
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   labs(x = "Date (monthly increments)",
        y = "Number of detections per overpass per million square km",
        color = "Day/night")
@@ -182,6 +219,7 @@ ggsave(filename = "figs/mcd14ml_n-trend_global.png", plot = global_n_gg)
 global_frp_gg <-
   ggplot(afd_global_summary, aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() +
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   geom_smooth() +
   theme_bw() +
   labs(x = "Date (monthly increments)",
@@ -202,12 +240,24 @@ global_prop_n_gg <-
 
 global_prop_n_gg
 
+global_prop_n_gg <-
+  ggplot(afd_global_summary_wide, aes(x = year_month, y = prop_n_night)) +
+  geom_line() +
+  geom_smooth() +
+  labs(x = "Date (monthly increments)",
+       y = "Proportion of global MODIS detections at night") +
+  theme_bw() +
+  facet_wrap(facets = vars(acq_month))
+
+global_prop_n_gg
+
 ggsave(filename = "figs/mcd14ml_prop-n-trend_global.png", plot = global_prop_n_gg)
 
 # koppen 1 Tropical
 tropical_n_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 1), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -219,6 +269,7 @@ tropical_n_gg <-
 arid_n_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 2), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -230,6 +281,7 @@ arid_n_gg <-
 temperate_n_gg <- 
   ggplot(dplyr::filter(afd_summary, koppen == 3), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -241,6 +293,7 @@ temperate_n_gg <-
 cold_n_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 4), aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -265,6 +318,7 @@ ggsave(filename = "figs/mcd14ml_n-trend_cold.png", plot = cold_n_gg)
 tropical_frp_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 1), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -276,6 +330,7 @@ tropical_frp_gg <-
 arid_frp_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 2), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -287,6 +342,7 @@ arid_frp_gg <-
 temperate_frp_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 3), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -298,6 +354,7 @@ temperate_frp_gg <-
 cold_frp_gg <-
   ggplot(dplyr::filter(afd_summary, koppen == 4), aes(x = year_month, y = mean_frp_per_detection, color = dn_detect)) +
   geom_line() + 
+  scale_color_manual(values = c("#b2182b", "#2166ac")) +
   facet_wrap(facets = "koppen_orig_modis_name", scales = "free_y") +
   geom_smooth() +
   theme_bw() +
@@ -312,19 +369,21 @@ ggsave(filename = "figs/mcd14ml_frp-trend_cold.png", plot = cold_frp_gg)
 
 
 ### Formal analysis
-gam_data <- 
-  afd_global_summary_wide %>% 
-  dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
 
 # https://fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
-m1 <- gam(prop_n_night ~ s(acq_month, bs = "cc", k = 12) + s(time), 
-          data = gam_data, 
-          correlation = corARMA(form = ~ 1, p = 1))
-plot(m1)
+gam_data <-
+  afd_global_summary_wide %>%
+  dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
+  
+m1 <- gamm(prop_n_night ~ s(acq_month, bs = "cc", k = 12) + ti(time),
+          data = gam_data,
+          correlation = corARMA(form = ~ time, p = 1))
 
-summary(m1)
+plot(m1$gam, pages = 1)
+
+summary(m1$gam)
 
 layout(matrix(1:2, ncol = 2))
-acf(resid(m1), lag.max = 36, main = "ACF")
-pacf(resid(m1), lag.max = 36, main = "pACF")
+acf(resid(m1$lme), lag.max = 10*12, main = "ACF")
+pacf(resid(m1$lme), lag.max = 10*12, main = "pACF")
 layout(1)

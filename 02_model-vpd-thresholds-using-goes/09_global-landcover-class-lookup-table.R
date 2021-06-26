@@ -58,3 +58,7 @@ vpd_thresholds_with_lc <-
   dplyr::left_join(koppen_modis_lookup_table, by = c(lc_name = "koppen_modis_name"))
 
 write.csv(vpd_thresholds_with_lc, file = "data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv", row.names = FALSE)
+
+system2(command = "aws", args = "s3 cp data/out/zero-goes-af-vpd-thresholds.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/zero-goes-af-vpd-thresholds.csv")
+
+system2(command = "aws", args = "s3 cp data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")

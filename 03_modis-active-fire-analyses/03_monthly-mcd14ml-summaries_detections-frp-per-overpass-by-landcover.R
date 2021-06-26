@@ -63,7 +63,7 @@ monthly_afd_l <-
     year_afd <- data.table::fread(afd_files[i], colClasses = c(acq_time = "character"))
     year_afd[, `:=`(acq_month = str_pad(string = lubridate::month(acq_dttme), width = 2, side = "left", pad = "0"),
                     acq_year = as.character(lubridate::year(acq_dttme)))]
-    year_afd <- year_afd[confidence >= 10, ]
+    year_afd <- year_afd[confidence >= 10 & type == 0]
     
     year_month_afd <- year_afd[, .(sum_frp = sum(frp), mean_frp = mean(frp), n = .N), by = .(cell_id_lc, lc, x_lc, y_lc, acq_month, acq_year, dn_detect)]
     
@@ -116,3 +116,5 @@ parallel::stopCluster(cl)
 monthly_afd <- data.table::rbindlist(monthly_afd_l)
 
 data.table::fwrite(x = monthly_afd, file = "data/out/mcd14ml_n-frp_month-lc-xy-daynight-summary.csv")
+
+system2(command = "aws", args = "s3 cp data/out/mcd14ml_n-frp_month-lc-xy-daynight-summary.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/")

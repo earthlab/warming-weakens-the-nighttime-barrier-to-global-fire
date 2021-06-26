@@ -1,6 +1,5 @@
 # define the day and nighttime fire season by landcover type
 
-
 library(dplyr)
 library(sf)
 library(terra)
@@ -9,13 +8,11 @@ library(cowplot)
 library(ncdf4)
 library(rasterDT)
 library(slider)
-# remotes::install_github("wilkelab/ggtext")
 library(ggtext)
 library(stringr)
 library(purrr)
 library(lubridate)
 library(ggplot2)
-# library(lutz)
 
 # gridded MCD14ML data ---------------------------------------------------------
 system2(command = "aws", args = "s3 sync s3://earthlab-jmcglinchy/night_fire/gridded/vars_refresh_may2021/CSV_nocorn_grid_0_25_degree_vars/ data/out/CSV_nocorn_grid_0_25_degree_vars")
@@ -87,11 +84,6 @@ afd <- lapply(X = years,
               })
 
 afd <- data.table::rbindlist(afd)
-
-# afd[, `:=`(lat_round = round((LATITUDE + 0.125) * 4) / 4 - 0.125,
-#            lon_round = round((LONGITUDE + 0.125) * 4) / 4 - 0.125)]
-# afd[, daynight := ifelse(solar_elev_ang < 0, "night", "day")]
-# afd[, night := as.numeric(solar_elev_ang < 0)]
 afd <- afd[type == 0 & confidence >= 10]
 
 afd[, acq_month := data.table::month(acq_dttme)]
@@ -101,9 +93,14 @@ afd[, doy := data.table::yday(acq_dttme)]
 afd[, month := str_pad(string = acq_month, width = 2, side = "left", pad = "0")]
 
 # Aggregate by doy and year first, so we can deal with leap years
-
+# Note we sum the FRP here, so will have to divide by total number of detections later
+# to get mean FRP per detection
 night_fires_by_lon_lat_year <- afd[, .(N = .N, frp = sum(frp)), by = .(lon = x_lc, lat = y_lc, year = acq_year, doy, dn_detect)]
 
+# Feburary is weird (with either 28 or 29 days), and so the doy (day of year) and month 
+# from something like lubridate::month(datetime) don't always match up and it makes grouping by
+# the lubridate::month(datetime) challenging. Instead, we grouped by doy first, then re-assigned
+# month based on leap years
 night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[1]], month := "01"]
 night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[2]], month := "02"]
 night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month[[3]], month := "03"]
@@ -133,10 +130,10 @@ night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[11]] & 
 night_fires_by_lon_lat_year[doy %in% first_of_months$doys_in_month_leap[[12]] & year %in% leap_years_in_record, month := "12"]
 
 data.table::setkeyv(night_fires_by_lon_lat_year, cols = c("dn_detect", "month", "lon", "lat"))
-detections_per_doy_lon_lat_year <- all_overpasses[night_fires_by_lon_lat_year, on = c("lon", "lat", "dn_detect", "month")]
 
 # overpasses_per_DOY_2003_2020 represents the cumulative number of overpasses for that DOY/lon/lat combination
 # across all 18 years -- 2003 to 2020
+detections_per_doy_lon_lat_year <- all_overpasses[night_fires_by_lon_lat_year, on = c("lon", "lat", "dn_detect", "month")]
 
 detections_per_doy_lon_lat_year[month %in% c("01", "03", "05", "07", "08", "10", "12"), overpasses_per_DOY_2003_2020 := overpass_count / 31]
 detections_per_doy_lon_lat_year[month %in% c("04", "06", "09", "11"), overpasses_per_DOY_2003_2020 := overpass_count / 30]
@@ -147,38 +144,15 @@ data.table::setkeyv(detections_per_doy_lon_lat_year, cols = c("lon", "lat"))
 
 # get landcover data ------------------------------------------------------
 
-# # Just use the 11 landcovers that we used to derive our VPDt
-# # landcovers_of_interest <- c(1:2, 4:10, 12, 14)
-# landcovers_of_interest <- c(1:2, 4:10, 12, 14, 18, 19)
 landcover_table <- 
-  read.csv("data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv") %>% 
-  dplyr::mutate(landcover_split = str_replace(lc_name, pattern = " ", replacement = "\n"))
-# 
-# landcover <- raster::raster(x = "data/data_raw/GLDASp4_domveg_025d.nc4")
-# landcover_area <- raster::area(landcover)
-# s <- stack(landcover, landcover_area)
-# # raster::origin(landcover) <- raster::origin(raster_template)
-# landcover_table <- 
-#   readr::read_csv(file = "data/data_raw/GLDASp4_domveg_025d_lookup-table.csv") %>% 
-#   dplyr::mutate(landcover_split = str_replace(landcover, pattern = " ", replacement = "\n"))
-# 
-# landcover_df <- 
-#   s %>% 
-#   as.data.frame(xy = TRUE) %>% 
-#   setNames(c("lon", "lat", "index", "pixel_area_km2")) %>% 
-#   dplyr::left_join(landcover_table, by = "index")
-# 
-# landcover_DT <- as.data.table(landcover_df)
-# data.table::setkeyv(landcover_DT, cols = c("lon", "lat"))
+  read.csv("data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv") %>%
+  dplyr::mutate(landcover_split = str_replace(lc_name, pattern = " ", replacement = "\n")) %>% 
+  dplyr::mutate(landcover_split = gsub(pattern = "Natural Vegetation Mosaics", replacement = "Natural\nVegetation Mosaics", x = landcover_split)) %>% 
+  dplyr::mutate(landcover_split = gsub(pattern = "Needleleaf Forests", replacement = "Needleleaf\nForests", x = landcover_split)) %>% 
+  dplyr::mutate(landcover_split = gsub(pattern = "Broadleaf Forests", replacement = "Broadleaf\nForests", x = landcover_split))
 
 landcover_DT <- data.table::fread("data/out/area-per-lc-pixel.csv") %>% setNames(c("cell_id_lc", "lon", "lat", "lc", "area_m2"))
 data.table::setkeyv(landcover_DT, cols = c("lon", "lat"))
-
-# total_landcover_areas <-
-#   landcover_DT %>% 
-#   dplyr::group_by(index) %>% 
-#   dplyr::summarize(total_area_of_landcover_km2 = as.numeric(sum(pixel_area_km2, na.rm = TRUE))) %>% 
-#   dplyr::left_join(landcover_table, by = "index")
 
 total_landcover_areas <- data.table::fread("data/out/area-per-lc.csv")[lc %in% landcover_table$koppen_modis_code]
 
@@ -222,8 +196,8 @@ detections_per_doy_lon_lat <-
                                   by = .(lon, lat, doy, dn_detect)]
 
 # mean_detections_per_overpass represents the total number of detections per lon/lat across
-# the 16-year period divided by the total number of overpasses per lon/lat across the 16 year period
-# Thus we can think of it as the expected number of detections per year per overpass
+# the 18-year period divided by the total number of overpasses per lon/lat across the 18 year period
+# Thus we can think of it as the expected number of detections per year per overpass on that DOY
 detections_per_doy_lon_lat[, `:=`(mean_detections_per_overpass = total_detections / overpasses_per_DOY_2003_2020,
                                   frp_per_overpass = total_frp / overpasses_per_DOY_2003_2020)]
 detections_per_doy_lon_lat[, hemisphere := ifelse(lat < 0, yes = "southern", no = "northern")]
@@ -231,7 +205,7 @@ detections_per_doy_lon_lat[, hemisphere := ifelse(lat < 0, yes = "southern", no 
 detections_per_doy_lon_lat_landcover <- landcover_DT[detections_per_doy_lon_lat]
 
 # Here, we sum across all the different lon/lat values into groups by landcover instead
-# total_detections is all of the detections across 16 years in that landcover type
+# total_detections is all of the detections across 18 years in that landcover type
 # mean_detetions_per_overpass_on_DOY is the expected annual detection/overpass across the whole
 # landcover type
 detections_per_doy_landcover <-  
@@ -306,6 +280,7 @@ doy_slider <- function(this_afd, doy, delta, var) {
 alpha_low <- 0.25
 alpha_high <- 1
 
+
 afd_of_interest <- 
   detections_per_doy_landcover %>% 
   dplyr::filter(lc %in% landcover_table$koppen_modis_code) %>% 
@@ -319,13 +294,13 @@ afd_of_interest <-
                                                          .f = doy_slider,
                                                          delta = 15,
                                                          var = mean_detections_per_overpass_on_DOY_per_km2)) %>% 
-      dplyr::mutate(smoothed_frp = purrr::map_dbl(doy,
+      dplyr::mutate(smoothed_frp = purrr::map_dbl(this_afd = .,
+                                                  doy,
                                                   .f = doy_slider,
-                                                  this_afd = .,
                                                   delta = 15,
-                                                  var = frp_per_overpass_on_DOY_per_km2)) %>% 
-      dplyr::mutate(smoothed_detections = smoothed_detections * (sum(mean_detections_per_overpass_on_DOY_per_km2) / sum(smoothed_detections)),
-                    smoothed_frp = smoothed_frp * (sum(frp_per_overpass_on_DOY_per_km2) / sum(smoothed_frp))) %>% 
+                                                  var = frp_per_detection)) %>% 
+      dplyr::mutate(smoothed_detections = smoothed_detections * (sum(mean_detections_per_overpass_on_DOY_per_km2) / sum(smoothed_detections))) %>% 
+      dplyr::mutate(smoothed_frp = smoothed_frp * (sum(frp_per_detection) / sum(smoothed_frp))) %>% 
       dplyr::mutate(over_threshold_raw_detections = ifelse(mean_detections_per_overpass_on_DOY_per_km2 < 
                                                              (12/3650) * sum(mean_detections_per_overpass_on_DOY_per_km2), 
                                                            yes = alpha_low,
@@ -334,8 +309,8 @@ afd_of_interest <-
                                                                 (12/3650) * sum(smoothed_detections),
                                                               yes = alpha_low,
                                                               no = alpha_high),
-                    over_threshold_raw_frp = ifelse(frp_per_overpass_on_DOY_per_km2 < 
-                                                      (12/3650) * sum(frp_per_overpass_on_DOY_per_km2),
+                    over_threshold_raw_frp = ifelse(frp_per_detection < 
+                                                      (12/3650) * sum(frp_per_detection),
                                                     yes = alpha_low,
                                                     no = alpha_high),
                     over_threshold_smooth_frp = ifelse(smoothed_frp < 
@@ -349,7 +324,7 @@ afd_of_interest <-
                                                            yes = smoothed_detections,
                                                            no = NA)) %>% 
       dplyr::mutate(thresholded_frp_raw = ifelse(over_threshold_raw_frp == alpha_high,
-                                                 yes = frp_per_overpass_on_DOY_per_km2,
+                                                 yes = frp_per_detection,
                                                  no = NA),
                     thresholded_frp_smooth = ifelse(over_threshold_smooth_frp == alpha_high,
                                                     yes = smoothed_frp,
@@ -361,19 +336,18 @@ afd_of_interest <-
   })
 
 # Determine landcover order
-landcover_order <- 
-  afd_of_interest %>% 
-  dplyr::filter(dn_detect == "night") %>% 
-  dplyr::summarize(detections = sum(smoothed_detections)) %>% 
-  dplyr::ungroup() %>% 
-  dplyr::left_join(landcover_table, by = c(lc = "koppen_modis_code")) %>% 
+landcover_order <-
+  afd_of_interest %>%
+  dplyr::filter(dn_detect == "night") %>%
+  dplyr::summarize(detections = sum(smoothed_detections)) %>%
+  dplyr::ungroup() %>%
+  dplyr::left_join(landcover_table, by = c(lc = "koppen_modis_code")) %>%
   dplyr::mutate(landcover_split = factor(landcover_split, levels = landcover_split[order(detections, decreasing = TRUE)]),
                 lc_name = factor(lc_name, levels = lc_name[order(detections, decreasing = TRUE)]),
                 lc = factor(lc, levels = lc[order(detections, decreasing = TRUE)]))
 
-afd_of_interest <-
-  afd_of_interest %>% 
-  dplyr::ungroup() %>% 
+afd_of_interest_lc <-
+  afd_of_interest %>%
   dplyr::left_join(landcover_table, by = c(lc = "koppen_modis_code")) %>% 
   dplyr::mutate(landcover_split = factor(landcover_split, levels = levels(landcover_order$landcover_split)),
                 lc_name = factor(lc_name, levels = levels(landcover_order$lc_name)),
@@ -381,10 +355,10 @@ afd_of_interest <-
 
 # Plot
 gg_fire_season <-
-  ggplot(afd_of_interest, aes(x = doy, 
-                              y = 1e6 * smoothed_detections, 
-                              color = dn_detect, 
-                              alpha = over_threshold_smooth_detections)) +
+  ggplot(afd_of_interest_lc, aes(x = doy, 
+                                 y = 1e6 * smoothed_detections, 
+                                 color = dn_detect, 
+                                 alpha = over_threshold_smooth_detections)) +
   geom_line(lwd = 1) +
   theme_bw(base_size = 10) +
   theme(strip.text = element_text(angle = 0, face = "bold"),
@@ -392,9 +366,12 @@ gg_fire_season <-
         axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
         axis.text = element_text(),
         axis.title.x = element_blank(),
-        legend.position = c(3/6, -1/5)) +
+        legend.position = "bottom") +
   scale_color_manual(values = c("#b2182b", "#2166ac")) +
-  facet_wrap(facets = vars(landcover_split), ncol = 5) +
+  # so the order is the same as the Bayes plot (based on vpd threshold)
+  facet_wrap(~reorder(landcover_split, vpd_thresh_hpa), nrow = 5) +
+  # so the order is descending from highest nighttime detections
+  # facet_wrap(facets = vars(landcover_split), nrow = 5) +
   labs(x = "Day of year",
        y = bquote("Expected detections per day per overpass per 1 million" ~ km^2),
        color = "Day or night?") +
@@ -413,10 +390,10 @@ ggsave(filename = "figs/fire-seasonality-detections_daynight-landcover.png", plo
 # FRP
 
 gg_fire_season_frp <-
-  ggplot(afd_of_interest, aes(x = doy, 
-                              y = 1e6 * smoothed_frp, 
-                              color = dn_detect, 
-                              alpha = over_threshold_smooth_frp)) +
+  ggplot(afd_of_interest_lc, aes(x = doy, 
+                                 y = smoothed_frp, 
+                                 color = dn_detect, 
+                                 alpha = over_threshold_smooth_frp)) +
   geom_line(lwd = 1) +
   theme_bw(base_size = 10) +
   theme(strip.text = element_text(angle = 0, face = "bold"),
@@ -424,11 +401,14 @@ gg_fire_season_frp <-
         axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
         axis.text = element_text(),
         axis.title.x = element_blank(),
-        legend.position = c(5/6, 1/8)) +
+        legend.position = "bottom") +
   scale_color_manual(values = c("#b2182b", "#2166ac")) +
-  facet_wrap(facets = vars(landcover_split), ncol = 3) +
+  # so the order is the same as the Bayes plot (based on vpd threshold)
+  facet_wrap(~reorder(landcover_split, vpd_thresh_hpa), nrow = 5) +
+  # so the order is descending from highest nighttime detections
+  # facet_wrap(facets = vars(landcover_split), nrow = 5) +
   labs(x = "Day of year",
-       y = bquote("Expected FRP per day per overpass per 1 million" ~ km^2),
+       y = "Expected FRP per detection",
        color = "Day or night?") +
   guides(alpha = FALSE) +
   scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
@@ -439,128 +419,84 @@ gg_fire_season_frp <-
 
 gg_fire_season_frp
 
-
-ggsave(filename = "figures/fire-seasonality-frp_daynight-landcover.png", plot = gg_fire_season_frp, width = 183, height = 4/3 * 183, units = "mm")
-
-# Including Tundra
-
-gg_fire_season_tundra <-
-  ggplot(afd_of_interest, aes(x = local_doy, 
-                              y = 1e6 * smoothed_detections, 
-                              color = daynight, 
-                              alpha = over_threshold_smooth_detections)) +
-  geom_line(lwd = 1) +
-  theme_bw(base_size = 10) +
-  theme(strip.text = element_text(angle = 0, face = "bold"),
-        strip.background = element_rect(fill = "white"),
-        axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
-        axis.text = element_text(),
-        axis.title.x = element_blank(),
-        legend.position = c(5/6, 1/8)) +
-  scale_color_manual(values = c("#b2182b", "#2166ac")) +
-  facet_wrap(facets = vars(landcover_split), ncol = 4) +
-  labs(x = "Day of year",
-       y = bquote("Expected detections per day per overpass per 1 million" ~ km^2),
-       color = "Day or night?") +
-  guides(alpha = FALSE) +
-  scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
-  scale_y_log10(labels = scales::comma) +
-  geom_vline(xintercept = first_of_months$doy_first) +
-  coord_polar() +
-  scale_alpha_identity()
-
-gg_fire_season_tundra
-
-ggsave(filename = "figures/fire-seasonality-detections_daynight-landcover_tundra.png", plot = gg_fire_season_tundra, width = 183, height = 4/3 * 183, units = "mm")
-
-gg_fire_season_frp_tundra <-
-  ggplot(afd_of_interest, aes(x = local_doy, 
-                              y = 1e6 * smoothed_frp, 
-                              color = daynight, 
-                              alpha = over_threshold_smooth_frp)) +
-  geom_line(lwd = 1) +
-  theme_bw(base_size = 10) +
-  theme(strip.text = element_text(angle = 0, face = "bold"),
-        strip.background = element_rect(fill = "white"),
-        axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
-        axis.text = element_text(),
-        axis.title.x = element_blank(),
-        legend.position = c(5/6, 1/8)) +
-  scale_color_manual(values = c("#b2182b", "#2166ac")) +
-  facet_wrap(facets = vars(landcover_split), ncol = 4) +
-  labs(x = "Day of year",
-       y = bquote("Expected FRP per day per overpass per 1 million" ~ km^2),
-       color = "Day or night?") +
-  guides(alpha = FALSE) +
-  scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
-  scale_y_log10(labels = scales::comma) +
-  geom_vline(xintercept = first_of_months$doy_first) +
-  coord_polar() +
-  scale_alpha_identity()
-
-gg_fire_season_frp_tundra
-
-ggsave(filename = "figures/fire-seasonality-frp_daynight-landcover_tundra.png", plot = gg_fire_season_frp_tundra, width = 183, height = 4/3 * 183, units = "mm")
-
-
-
-### Including Tundra
-
-
+ggsave(filename = "figs/fire-seasonality-frp_daynight-landcover.png", plot = gg_fire_season_frp, width = 183, height = 4/3 * 183, units = "mm")
 
 
 # table summary -----------------------------------------------------------
 
 seasonality_table <-
-  afd_of_interest %>% 
-  group_by(index, landcover, daynight) %>% 
+  afd_of_interest_lc %>% 
+  group_by(lc, lc_name, dn_detect) %>% 
   dplyr::summarize(season_length_detections = sum(over_threshold_smooth_detections == alpha_high),
                    season_length_frp = sum(over_threshold_smooth_frp == alpha_high)) %>% 
-  tidyr::pivot_wider(names_from = daynight, values_from = c("season_length_detections", "season_length_frp")) %>% 
-  dplyr::arrange(index)
+  tidyr::pivot_wider(names_from = dn_detect, values_from = c("season_length_detections", "season_length_frp")) %>% 
+  dplyr::arrange(lc)
 
 readr::write_csv(seasonality_table, path = "tables/fire-seasonality-summary-table.csv")
 
 # by hemisphere also ------------------------------------------------------
 
-afd_of_interest <- 
+afd_of_interest_by_hemisphere <- 
   detections_per_doy_landcover_hemisphere %>% 
-  dplyr::filter(index %in% landcovers_of_interest) %>% 
-  dplyr::filter(local_doy != 366) %>% 
-  dplyr::arrange(hemisphere, index, daynight, local_doy) %>% 
-  dplyr::group_by(index, daynight, hemisphere) %>% 
+  dplyr::filter(lc %in% landcover_table$koppen_modis_code) %>% 
+  dplyr::filter(doy != 366) %>%
+  dplyr::arrange(hemisphere, lc, dn_detect, doy) %>% 
+  dplyr::group_by(lc, dn_detect, hemisphere) %>% 
   dplyr::group_modify(.f = function(.x, ...) {
-    
     .x <-
       .x %>% 
-      dplyr::mutate(smoothed_detections = purrr::map_dbl(local_doy, 
+      dplyr::mutate(smoothed_detections = purrr::map_dbl(this_afd = ., 
+                                                         doy, 
                                                          .f = doy_slider,
-                                                         afd = .,
-                                                         delta = 15)) %>% 
-      dplyr::mutate(over_threshold_raw = ifelse(mean_detections_per_overpass_on_DOY_per_km2 < (12/3650) * sum(mean_detections_per_overpass_on_DOY_per_km2), 
-                                                yes = alpha_low,
-                                                no = alpha_high),
-                    over_threshold_smooth = ifelse(smoothed_detections < (12/3650) * sum(smoothed_detections),
-                                                   yes = alpha_low,
-                                                   no = alpha_high)) %>% 
-      dplyr::mutate(thresholded_detections_raw = ifelse(over_threshold_raw == alpha_high,
+                                                         delta = 15,
+                                                         var = mean_detections_per_overpass_on_DOY_per_km2)) %>% 
+      dplyr::mutate(smoothed_frp = purrr::map_dbl(this_afd = .,
+                                                  doy,
+                                                  .f = doy_slider,
+                                                  delta = 15,
+                                                  var = frp_per_detection)) %>% 
+      dplyr::mutate(smoothed_detections = smoothed_detections * (sum(mean_detections_per_overpass_on_DOY_per_km2) / sum(smoothed_detections))) %>% 
+      dplyr::mutate(smoothed_frp = smoothed_frp * (sum(frp_per_detection) / sum(smoothed_frp))) %>% 
+      dplyr::mutate(over_threshold_raw_detections = ifelse(mean_detections_per_overpass_on_DOY_per_km2 < 
+                                                             (12/3650) * sum(mean_detections_per_overpass_on_DOY_per_km2), 
+                                                           yes = alpha_low,
+                                                           no = alpha_high),
+                    over_threshold_smooth_detections = ifelse(smoothed_detections < 
+                                                                (12/3650) * sum(smoothed_detections),
+                                                              yes = alpha_low,
+                                                              no = alpha_high),
+                    over_threshold_raw_frp = ifelse(frp_per_detection < 
+                                                      (12/3650) * sum(frp_per_detection),
+                                                    yes = alpha_low,
+                                                    no = alpha_high),
+                    over_threshold_smooth_frp = ifelse(smoothed_frp < 
+                                                         (12/3650) * sum(smoothed_frp),
+                                                       yes = alpha_low,
+                                                       no = alpha_high)) %>% 
+      dplyr::mutate(thresholded_detections_raw = ifelse(over_threshold_raw_detections == alpha_high,
                                                         yes = mean_detections_per_overpass_on_DOY_per_km2,
                                                         no = NA),
-                    thresholded_detections_smooth = ifelse(over_threshold_smooth == alpha_high,
+                    thresholded_detections_smooth = ifelse(over_threshold_smooth_detections == alpha_high,
                                                            yes = smoothed_detections,
-                                                           no = NA))
+                                                           no = NA)) %>% 
+      dplyr::mutate(thresholded_frp_raw = ifelse(over_threshold_raw_frp == alpha_high,
+                                                 yes = frp_per_detection,
+                                                 no = NA),
+                    thresholded_frp_smooth = ifelse(over_threshold_smooth_frp == alpha_high,
+                                                    yes = smoothed_frp,
+                                                    no = NA))
+    
+    
     return(.x)
+    
   })
 
-afd_of_interest <-
-  afd_of_interest %>% 
+afd_of_interest_by_hemisphere_lc <-
+  afd_of_interest_by_hemisphere %>% 
   dplyr::mutate(landcover_split = factor(landcover_split, levels = levels(landcover_order$landcover_split)))
 
-
-# log10 scale
-
 gg_fire_season_northern_hemisphere <- 
-  ggplot(afd_of_interest %>% dplyr::filter(hemisphere == "northern"), aes(x = local_doy, y = 1000 * smoothed_detections, color = daynight, alpha = over_threshold_smooth)) +
+  ggplot(afd_of_interest_by_hemisphere_lc %>% dplyr::filter(hemisphere == "northern"), aes(x = doy, y = 1e6 * smoothed_detections, color = dn_detect, alpha = over_threshold_smooth_detections)) +
   geom_line() +
   theme_bw(base_size = 10) +
   theme(strip.text = element_text(angle = 0, face = "bold"),
@@ -568,9 +504,12 @@ gg_fire_season_northern_hemisphere <-
         axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
         axis.text = element_text(),
         axis.title.x = element_blank(),
-        legend.position = c(5/6, 1/8)) +
+        legend.position = "bottom") +
   scale_color_manual(values = c("red", "black")) +
-  facet_wrap(facets = vars(landcover_split), ncol = 3) +
+  # so the order is the same as the Bayes plot (based on vpd threshold)
+  facet_wrap(~reorder(landcover_split, vpd_thresh_hpa), nrow = 5) +
+  # so the order is descending from highest nighttime detections
+  # facet_wrap(facets = vars(landcover_split), ncol = 5) +
   labs(x = "Day of year",
        y = bquote("Mean detections per day per overpass per 1,000" ~ km^2),
        color = "Day or night?",
@@ -588,7 +527,7 @@ ggsave(filename = "figures/fire-seasonality_daynight-landcover-northern-hemisphe
 
 
 gg_fire_season_southern_hemisphere <- 
-  ggplot(afd_of_interest %>% dplyr::filter(hemisphere == "southern"), aes(x = local_doy, y = 1000 * smoothed_detections, color = daynight, alpha = over_threshold_smooth)) +
+  ggplot(afd_of_interest_by_hemisphere_lc %>% dplyr::filter(hemisphere == "southern"), aes(x = doy, y = 1e6 * smoothed_detections, color = dn_detect, alpha = over_threshold_smooth_detections)) +
   geom_line() +
   theme_bw(base_size = 10) +
   theme(strip.text = element_text(angle = 0, face = "bold"),
@@ -596,9 +535,12 @@ gg_fire_season_southern_hemisphere <-
         axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
         axis.text = element_text(),
         axis.title.x = element_blank(),
-        legend.position = c(5/6, 1/8)) +
+        legend.position = "bottom") +
   scale_color_manual(values = c("red", "black")) +
-  facet_wrap(facets = vars(landcover_split), ncol = 3, drop = FALSE) +
+  # so the order is the same as the Bayes plot (based on vpd threshold)
+  facet_wrap(~reorder(landcover_split, vpd_thresh_hpa), nrow = 5) +
+  # so the order is descending from highest nighttime detections
+  # facet_wrap(facets = vars(landcover_split), ncol = 5, drop = FALSE) +
   labs(x = "Day of year",
        y = bquote("Mean detections per day per overpass per 1,000" ~ km^2),
        color = "Day or night?",
@@ -613,246 +555,3 @@ gg_fire_season_southern_hemisphere <-
 gg_fire_season_southern_hemisphere
 
 ggsave(filename = "figures/fire-seasonality_daynight-landcover-southern-hemisphere.png", plot = gg_fire_season_southern_hemisphere, width = 183, height = 4/3 * 183, units = "mm")
-
-### Old figures
-
-# Total detections
-
-# ggplot(afd_of_interest, aes(x = local_doy, y = total_detections, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_grid(rows = vars(landcover), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Total detections",
-#        title = "Total detections per day of year across the 2003-2018 period")
-# 
-# ggplot(afd_of_interest, aes(x = local_doy, y = total_detections, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_wrap(facets = vars(landcover)) +
-#   labs(x = "Day of year",
-#        y = "Total detections",
-#        title = "Total detections per day of year across the 2003-2018 period") +
-#   coord_polar() +
-#   scale_y_log10()
-# 
-# # Detections corrected for overpass frequency and land area of each landcover type
-# 
-# ggplot(afd_of_interest, aes(x = local_doy, y = mean_detections_per_overpass_on_DOY_per_km2, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_grid(rows = vars(landcover), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Detections per overpass per 1000 km^2^",
-#        title = "Detections per day of year per overpass per 1000 km2")
-# 
-# ggplot(afd_of_interest, aes(x = local_doy, y = smoothed_detections, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_grid(rows = vars(landcover), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Detections per overpass per 1000 km^2^",
-#        title = "Detections per day of year per overpass per 1000 km2")
-
-# ggplot(afd_of_interest, aes(x = local_doy, y = mean_detections_per_overpass_on_DOY_per_km2, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_wrap(facets = vars(landcover)) +
-#   labs(x = "Day of year",
-#        y = "Detections per overpass per 1000 km^2^",
-#        title = "Detections per day of year per overpass per 1000 km2 (log10 scale)") +
-#   scale_y_log10() +
-#   geom_vline(xintercept = first_of_months$doy_first) +
-#   scale_x_continuous(breaks = first_of_months$doy_first, labels = paste(first_of_months$name, "1")) +
-#   coord_polar()
-
-
-# log scale
-
-# ggplot(afd_of_interest, aes(x = local_doy, y = mean_detections_per_overpass_on_DOY_per_km2, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_grid(rows = vars(landcover), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Detections per overpass per 1000 km^2^",
-#        title = "Detections per day of year per overpass per 1000 km2 (log10 scale)") +
-#   scale_y_log10()
-
-
-# just nighttime corrected detections
-# ggplot(afd_of_interest %>% dplyr::filter(daynight == "night"), aes(x = local_doy, y = mean_detections_per_overpass_on_DOY_per_km2, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   scale_color_manual(values = c("black")) +
-#   facet_grid(rows = vars(landcover), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Detections per overpass per 1000 km^2^",
-#        title = "Detections per day of year per overpass per 1000 km2")
-
-# Percent of land area affected
-
-# ggplot(afd_of_interest, aes(x = local_doy, y = pct_of_landcover_area_affected_by_detections, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_grid(rows = vars(landcover), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Percent",
-#        title = "Mean percent of landcover affected by fire detections per year")
-# 
-# ggplot(afd_of_interest, aes(x = local_doy, y = pct_of_landcover_area_affected_by_detections, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_wrap(facets = vars(landcover)) +
-#   coord_polar() +
-#   labs(x = "Day of year",
-#        y = "Percent",
-#        title = "Mean percent of landcover affected by fire detections per year")
-# 
-# 
-# # Just nighttime percent of land area affected
-# ggplot(afd_of_interest %>% dplyr::filter(daynight == "night"), aes(x = local_doy, y = pct_of_landcover_area_affected_by_detections)) +
-#   geom_line(lwd = 2) +
-#   theme_bw() +
-#   facet_grid(rows = vars(landcover), scales = "free_y")
-
-
-# With thresholds
-
-# ggplot(afd_of_interest, aes(x = local_doy, y = thresholded_detections_smooth, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw(base_size = 14) +
-#   theme(strip.text.y = element_text(
-#     size = 12, angle = 0
-#   )) +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_grid(rows = vars(landcover_split), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Mean detections per day per overpass per km2",
-#        title = "Day and nighttime fire season  
-#        Mean annual number of MODIS active fire detections per overpass per km^2 (using a 31-day smoothing window)  
-#        (value for a day/landcover/daynight combination must be above 1.2 times the daily average following the rule of Giglio et al., 2006)",
-#        color = "Day or night?") +
-#   theme(plot.title = element_textbox_simple()) +
-#   scale_x_continuous(breaks = first_of_months$doy_first, labels = paste(first_of_months$name, "1"))
-
-
-# labs(x = "Day of year",
-#      y = "Mean detections per day per overpass per km2",
-#      title = "Day and nighttime fire season  
-#        Mean annual number of MODIS active fire detections per overpass per km^2 (using a 31-day smoothing window)  
-#        (value for a day/landcover/daynight combination must be above 1.2 times the daily average following the rule of Giglio et al., 2006)",
-#      color = "Day or night?")
-
-
-
-#log10 scale
-# gg_fire_season <-
-#   ggplot(afd_of_interest, aes(x = local_doy, y = thresholded_detections_smooth, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw(base_size = 14) +
-#   theme(strip.text.y = element_text(
-#     size = 12, angle = 0
-#   )) +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_grid(rows = vars(landcover_split), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Mean detections per day per overpass per km2",
-#        title = "Day and nighttime fire season  
-#        Mean annual number of MODIS active fire detections per overpass per km^2 (using a 31-day smoothing window)  
-#        (value for a day/landcover/daynight combination must be above 1.2 times the daily average following the rule of Giglio et al., 2006)",
-#        color = "Day or night?") +
-#   theme(plot.title = element_textbox_simple()) +
-#   scale_x_continuous(breaks = first_of_months$doy_first, labels = paste(first_of_months$name_abbrv, "1")) +
-#   scale_y_log10()
-
-
-
-
-#  by hemisphere ----------------------------------------------------------
-
-# ggplot(afd_of_interest, aes(x = local_doy, y = thresholded_detections_smooth, color = daynight, lty = hemisphere)) +
-#   geom_line(lwd = 1) +
-#   theme_bw(base_size = 14) +
-#   theme(strip.text.y = element_text(size = 12, angle = 0)) +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_grid(rows = vars(landcover_split), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Mean detections per day per overpass per km2",
-#        title = "Day and nighttime fire season  
-#        Mean annual number of MODIS active fire detections per overpass per km^2 (using a 31-day smoothing window)  
-#        (value for a day/landcover/daynight/hemisphere combination must be above 1.2 times the daily average following the rule of Giglio et al., 2006)",
-#        color = "Day or night?",
-#        lty = "Hemisphere") +
-#   scale_x_continuous(breaks = first_of_months$doy_first, labels = paste(first_of_months$name, "1")) +
-#   theme(plot.title = element_textbox_simple())
-# 
-# gg_fire_season_hemisphere <- 
-#   ggplot(afd_of_interest, aes(x = local_doy, y = thresholded_detections_smooth, color = daynight, lty = hemisphere)) +
-#   geom_line(lwd = 1) +
-#   theme_bw(base_size = 14) +
-#   theme(strip.text.y = element_text(size = 12, angle = 0)) +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_grid(rows = vars(landcover_split), scales = "free_y") +
-#   labs(x = "Day of year",
-#        y = "Mean detections per day per overpass per km2",
-#        title = "Day and nighttime fire season  
-#        Mean annual number of MODIS active fire detections per overpass per km^2 (using a 31-day smoothing window)  
-#        (value for a day/landcover/daynight/hemisphere combination must be above 1.2 times the daily average following the rule of Giglio et al., 2006)",
-#        color = "Day or night?",
-#        lty = "Hemisphere") +
-#   scale_x_continuous(breaks = first_of_months$doy_first, labels = paste(first_of_months$name, "1")) +
-#   theme(plot.title = element_textbox_simple()) +
-#   scale_y_log10()
-
-
-
-# gg_fire_season <-
-#   ggplot(afd_of_interest, aes(x = local_doy, y = thresholded_detections_smooth, color = daynight)) +
-#   geom_line(lwd = 2) +
-#   theme_bw(base_size = 14) +
-#   theme(strip.text.y = element_text(size = 12, angle = 0),
-#         plot.title = element_textbox_simple(),
-#         legend.position = c(0.875, 1/6)) +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_wrap(facets = vars(landcover_split)) +
-#   labs(x = "Day of year",
-#        y = "Mean detections per day per overpass per km2",
-#        color = "Day or night?") +
-#   scale_x_continuous(breaks = first_of_months$doy_first, labels = paste(first_of_months$name_abbrv, "1")) +
-#   scale_y_log10() +
-#   geom_vline(xintercept = first_of_months$doy_first) +
-#   coord_polar()
-
-
-
-# gg_fire_season_hemisphere <- 
-#   ggplot(afd_of_interest, aes(x = local_doy, y = 1000 * thresholded_detections_smooth, color = daynight, lty = hemisphere)) +
-#   geom_line() +
-#   theme_bw(base_size = 10) +
-#   theme(strip.text = element_text(angle = 0, face = "bold"),
-#         strip.background = element_rect(fill = "white"),
-#         axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
-#         axis.text = element_text(),
-#         axis.title.x = element_blank(),
-#         legend.position = c(5/6, 1/8)) +
-#   scale_color_manual(values = c("red", "black")) +
-#   facet_wrap(facets = vars(landcover_split), ncol = 3) +
-#   labs(x = "Day of year",
-#        y = bquote("Mean detections per day per overpass per 1,000" ~ km^2),
-#        color = "Day or night?",
-#        title = "Northern hemisphere") +
-#   guides(alpha = FALSE) +
-#   scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
-#   scale_y_log10(labels = scales::comma) +
-#   geom_vline(xintercept = first_of_months$doy_first) +
-#   coord_polar() +
-#   scale_alpha_identity()
-

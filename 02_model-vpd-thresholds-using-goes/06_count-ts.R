@@ -39,7 +39,8 @@ gamready_files <- list.files(here("data", "out", "gamready"),
                              full.names = TRUE, pattern = ".csv$") %>%
   file.info() %>%
   as_tibble(rownames = "file") %>%
-  arrange(-size)
+  arrange(-size) %>% 
+  dplyr::filter(str_detect(file, "Polar", negate = TRUE))
 
 dir.create(here("data", "mods"), 
            showWarnings = FALSE, recursive = TRUE)
@@ -50,7 +51,8 @@ for(i in 1:nrow(gamready_files)){
   
   out_fn_base <- 
     str_replace(f, "data/out/gamready/", "") %>%
-    str_replace("_gamready.csv", "")
+    str_replace("_gamready.csv", "") %>% 
+    basename()
   
   outname <- here("data", "mods", paste0(out_fn_base, "-gam.rds"))
   
@@ -66,7 +68,7 @@ for(i in 1:nrow(gamready_files)){
     droplevels()
 
   if (nrow(events) == 0) next
-  if (length(unique(events$nid)) < 200) next
+  if (length(unique(events$nid)) < 100) next
   
   # subsample for ecoregions with lots of rows
   max_nrow <- 100000

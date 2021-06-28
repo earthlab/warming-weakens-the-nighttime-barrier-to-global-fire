@@ -100,7 +100,7 @@ for(f in fired_files){
   if(!file.exists(file.path("data","vpd_lc",out_fn))){
     firez<- st_read(f)
     
-    lut_dates <- firez$first_date_7
+    lut_dates <- firez$first_date_7 #add a +1 here to account for the discrepancy with john's vpd values
     names(lut_dates) <- firez$nid
     
     ids <- firez %>%

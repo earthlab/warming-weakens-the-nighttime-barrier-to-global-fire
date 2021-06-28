@@ -73,11 +73,11 @@ rm(na_vpd)
 
 # joining vpd csvs, then splitting by landcover and koppen =====================
 
-system("aws s3 cp s3://earthlab-amahood/night_fires/na_vpd_long_2017-nids.csv data/na.csv")
-system("aws s3 cp s3://earthlab-amahood/night_fires/sa_vpd_long_2017-nids.csv data/sa.csv")
+system("aws s3 cp s3://earthlab-amahood/night_fires/na_vpd_long_2017-nids.csv data/vpd_input/na.csv")
+system("aws s3 cp s3://earthlab-amahood/night_fires/sa_vpd_long_2017-nids.csv data/vpd_input/sa.csv")
 system("aws s3 sync s3://earthlab-amahood/night_fires/lc_splits data/lc_splits")
 
-files <- list.files("data", full.names = TRUE, pattern = ".csv")[c(2,4)]
+files <- list.files("data/vpd_input", full.names = TRUE, pattern = ".csv")
 wh <- vroom(files) 
 
 # wh <- wh %>% 
@@ -90,7 +90,9 @@ system("aws s3 cp data/wh_vpd.csv s3://earthlab-amahood/night_fires/wh_vpd.csv")
 dir.create("data/vpd_lc")
 fired_files <- list.files("data/lc_splits", pattern = ".gpkg", full.names = TRUE)
 out_files<- list.files("data/vpd_lc", pattern = "csv")
-wh<- vroom("data/wh_vpd.csv")
+# wh<- vroom("data/wh_vpd.csv")
+
+date_correcting_number <- 2 # our vpd date extraction was off, fixing here
 
 for(f in fired_files){
   out_fn <- str_replace(f, "lc_splits", "") %>%
@@ -98,16 +100,13 @@ for(f in fired_files){
     str_replace_all("/", "") %>%
     str_replace("data", "")
   if(!file.exists(file.path("data","vpd_lc",out_fn))){
-    firez<- st_read(f)
+    firez<- st_read(f) 
     
-    lut_dates <- firez$first_date_7 #add a +1 here to account for the discrepancy with john's vpd values
+    lut_dates <- firez$first_date_7 + date_correcting_number#add a +1 here to account for the discrepancy with john's vpd values
     names(lut_dates) <- firez$nid
     
     ids <- firez %>%
       pull(nid)
-    
-    
-    
     
     subsettt <- filter(wh, nid %in% ids) %>%
       separate(hour, into = c("day", "hour"), sep="_", convert=TRUE) %>%
@@ -115,9 +114,16 @@ for(f in fired_files){
              date = first_date + day)
     
     vroom_write(subsettt, file.path("data", "vpd_lc", out_fn))
+    if(date_correcting_number==0){
     system(paste("aws s3 cp",
                  file.path("data", "vpd_lc", out_fn),
                  file.path("s3://earthlab-amahood", "night_fires","vpd_lc",out_fn)))
+    }else{
+      system(paste("aws s3 cp",
+                   file.path("data", "vpd_lc", out_fn),
+                   file.path("s3://earthlab-amahood", "night_fires",
+                             paste0("vpd_lc", "_plus_",date_correcting_number),out_fn)))
+      }
     
     rm(subsettt); rm(firez);gc()
   }

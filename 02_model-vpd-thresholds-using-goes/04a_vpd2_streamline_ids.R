@@ -48,21 +48,23 @@ system("aws s3 cp data/fired_na_2017-nids.gpkg s3://earthlab-amahood/night_fires
 
 rm(na)
 # now vpd monsters =============================================================
-sa_vpd <- vroom("data/sa_vpd_long_2017-test.csv") %>%
+system("aws s3 cp s3://earthlab-amahood/night_fires/luts.Rda data/luts.Rda")
+load("data/luts.Rda")
+system("aws s3 cp s3://earthlab-amahood/night_fires/sa_vpd_long_2017.csv data/sa_vpd_long_2017.csv")
+
+sa_vpd <- vroom("data/sa_vpd_long_2017.csv") %>%
   mutate(fireID=as.character(fireID),
          nid = lut_saids[fireID],
          fireID=as.numeric(fireID),
          nid=as.numeric(nid))
-write_csv(sa_vpd, "data/sa_vpd_long_2017-nids.csv")
+vroom_write(sa_vpd, "data/sa_vpd_long_2017-nids.csv")
 system("aws s3 cp data/sa_vpd_long_2017-nids.csv s3://earthlab-amahood/night_fires/sa_vpd_long_2017-nids.csv")
 rm(sa_vpd)
 gc()
 
-system("aws s3 cp s3://earthlab-amahood/night_fires/na_vpd_long_2017-.csv data/na_vpd_long_2017-.csv")
-system("aws s3 cp s3://earthlab-amahood/night_fires/luts.Rda data/luts.Rda")
-load("data/luts.Rda")
+system("aws s3 cp s3://earthlab-amahood/night_fires/na_vpd_long_2017.csv data/na_vpd_long_2017.csv")
 
-na_vpd <- vroom("data/na_vpd_long_2017-.csv") %>%
+na_vpd <- vroom("data/na_vpd_long_2017.csv") %>%
   mutate(fireID=as.character(fireID),
          nid = lut_naids[fireID],
          fireID=as.numeric(fireID),
@@ -73,12 +75,14 @@ rm(na_vpd)
 
 # joining vpd csvs, then splitting by landcover and koppen =====================
 
-system("aws s3 cp s3://earthlab-amahood/night_fires/na_vpd_long_2017-nids.csv data/vpd_input/na.csv")
-system("aws s3 cp s3://earthlab-amahood/night_fires/sa_vpd_long_2017-nids.csv data/vpd_input/sa.csv")
+system("aws s3 cp s3://earthlab-amahood/night_fires/na_vpd_long_2017-nids.csv data/na_vpd_long_2017-nids.csv")
+system("aws s3 cp s3://earthlab-amahood/night_fires/sa_vpd_long_2017-nids.csv data/sa_vpd_long_2017-nids.csv")
 system("aws s3 sync s3://earthlab-amahood/night_fires/lc_splits data/lc_splits")
 
-files <- list.files("data/vpd_input", full.names = TRUE, pattern = ".csv")
+files <- list.files("data/", full.names = TRUE, pattern = "vpd_long_2017-nids.csv")
 wh <- vroom(files) 
+
+wh <- as.data.table(wh)
 
 # wh <- wh %>% 
 #   separate(hour, into = c("day", "hour"),sep="_",) # maybe do this in smaller chunks
@@ -108,12 +112,14 @@ for(f in fired_files){
     ids <- firez %>%
       pull(nid)
     
-    subsettt <- filter(wh, nid %in% ids) %>%
-      separate(hour, into = c("day", "hour"), sep="_", convert=TRUE) %>%
-      mutate(first_date = as.Date(lut_dates[as.character(nid)]),
-             date = first_date + day)
+    # data.table way
+    subsettt <- wh[nid %in% ids]
+    subsettt[, c("day", "hour") := tstrsplit(day_hour, "_")]
+    subsettt <- subsettt %>%
+      mutate(first_date = lubridate::ymd(lut_dates[as.character(nid)]),
+             date= first_date+as.numeric(day)) 
     
-    vroom_write(subsettt, file.path("data", "vpd_lc", out_fn))
+    fwrite(subsettt, file.path("data", "vpd_lc", out_fn))
     if(date_correcting_number==0){
     system(paste("aws s3 cp",
                  file.path("data", "vpd_lc", out_fn),

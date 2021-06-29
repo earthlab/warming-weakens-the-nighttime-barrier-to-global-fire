@@ -8,7 +8,7 @@ library(stringr)
 library(here)
 
 predictions <- list.files(pattern = "-predictions.csv$", 
-                          path = here("data", "mods"), 
+                          path = here("data", "out", "mods"), 
                           full.names = TRUE) %>%
   lapply(vroom) %>%
   bind_rows %>%
@@ -52,7 +52,8 @@ partial_df <- predictions %>%
             n = n()) %>%
   ungroup %>%
   mutate(color_group = gsub( " .*$", "", lc_name), 
-         facet_label = paste(color_group, "landcovers"))
+         facet_label = paste(color_group, "landcovers")) %>% 
+  mutate(facet_label = ifelse(grepl(x = lc_name, pattern = "Croplands"), yes = "Cropland landcovers", no = facet_label))
 
 plot_df <- partial_df %>%
   left_join(thresholds) %>%
@@ -82,7 +83,7 @@ ggsave(plot = partial_plot,
 # Combine Koppen classes into single facet per Jennifer/Adam request
 partial_plot_single <- 
   plot_df %>%
-  ggplot(aes(VPD_hPa, mu, color = facet_label)) +
+  ggplot(aes(VPD_hPa / 10, mu, color = facet_label)) +
   geom_path(aes(group = lc_name), lwd = 1.0) +
   geom_ribbon(aes(ymin = lo, ymax = hi, group = lc_name), 
               color = NA, alpha = 0.02) +
@@ -90,7 +91,7 @@ partial_plot_single <-
   # theme(legend.position = "none", 
   #       panel.grid.minor = element_blank(), 
   #       axis.title.x = element_text(hjust = .24)) + 
-  labs(x = "Vapor pressure deficit (hPa)",
+  labs(x = "Vapor pressure deficit (kPa)",
        y = "Active fire detection probability",
        color = "Köppen-Geiger\nclimate classifications")
 

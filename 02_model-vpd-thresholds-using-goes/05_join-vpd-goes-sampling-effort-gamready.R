@@ -10,36 +10,36 @@ library(lubridate)
 dir.create("data/out/gamready", recursive = TRUE, showWarnings = FALSE)
 
 # # test using Arid Deciduous Broadleaf (~24 events)
-# system2(command = "aws", args = "s3 cp s3://earthlab-amahood/night_fires/vpd_lc/Arid_Deciduous_Broadleaf_Forests_vpds.csv data/vpd_lc/Arid_Deciduous_Broadleaf_Forests_vpds.csv")
+# system2(command = "aws", args = "s3 cp s3://earthlab-amahood/night_fires/vpd_lc_plus_2/Arid_Deciduous_Broadleaf_Forests_vpds.csv data/vpd_lc/Arid_Deciduous_Broadleaf_Forests_vpds.csv")
 # system2(command = "aws", args = "s3 cp s3://earthlab-amahood/night_fires/goes_counts/Arid_Deciduous_Broadleaf_Forests.csv data/goes_counts/Arid_Deciduous_Broadleaf_Forests.csv")
 # system2(command = "aws", args = "s3 cp s3://earthlab-amahood/night_fires/gamready/Arid_Deciduous_Broadleaf_Forests_gamready.csv data/out/Arid_Deciduous_Broadleaf_Forests_gamready.csv")
 # 
 # # bigger test using Boreal_Evergreen_Needleleaf_Forests (~176 events)
-# system2(command = "aws", args = "s3 cp s3://earthlab-amahood/night_fires/vpd_lc/Boreal_Evergreen_Needleleaf_Forests_vpds.csv data/vpd_lc/Boreal_Evergreen_Needleleaf_Forests_vpds.csv")
-# system2(command = "aws", args = "s3 cp s3://earthlab-amahood/night_fires/goes_counts/Boreal_Evergreen_Needleleaf_Forests.csv data/goes_counts/Boreal_Evergreen_Needleleaf_Forests.csv")
+# system2(command = "aws", args = "s3 cp s3://earthlab-amahood/night_fires/vpd_lc_plus_2/Boreal_Evergreen_Needleleaf_Forests_vpds.csv data/out/vpd_lc/Boreal_Evergreen_Needleleaf_Forests_vpds.csv")
+# system2(command = "aws", args = "s3 cp s3://earthlab-amahood/night_fires/goes_counts/Boreal_Evergreen_Needleleaf_Forests.csv data/out/goes_counts/Boreal_Evergreen_Needleleaf_Forests.csv")
 # system2(command = "aws", args = "s3 cp s3://earthlab-amahood/night_fires/gamready/Boreal_Evergreen_Needleleaf_Forests_gamready.csv data/out/Boreal_Evergreen_Needleleaf_Forests_gamready.csv")
 
 # These are pretty big file syncs (50 GB) so don't run them if you're not doing the whole
 # analysis. Instead, get the necessary vpd_lc and goes data using the `aws s3 cp` commands
 # that are commented out above. (Two separate examples; one big and one small)
-system("aws s3 sync s3://earthlab-amahood/night_fires/vpd_lc data/vpd_lc")
+system("aws s3 sync s3://earthlab-amahood/night_fires/vpd_lc_plus_2 data/out/vpd_lc")
 system("aws s3 sync s3://earthlab-amahood/night_fires/goes_counts data/goes_counts")
 system(str_c("aws s3 sync ",
              file.path("s3://earthlab-amahood","night_fires","gamready")," ",
              file.path("data", "out", "gamready")))
 
-vpd_files <- list.files("data/vpd_lc", pattern=".csv")
-goes_files <- list.files("data/goes_counts", pattern = ".csv")
+vpd_files <- list.files("data/out/vpd_lc", pattern=".csv")
+goes_files <- list.files("data/out/goes_counts", pattern = ".csv")
 
 for(f in vpd_files){
   if(!file.exists(file.path("data", "out", "gamready", str_replace(f, "vpds", "gamready")))){
-    if(file.exists(file.path("data", "goes_counts", str_replace(f, "_vpds", "")))){
+    if(file.exists(file.path("data", "out", "goes_counts", str_replace(f, "_vpds", "")))){
       print(f)
       gc()
       
       # read GOES data first, because we only need VPD data for rows of VPD data frame
       # that are part of a FIRED event that has GOES detections
-      goes_raw <- data.table::fread(file.path("data", "goes_counts", str_replace(f, "_vpds", "")))
+      goes_raw <- data.table::fread(file.path("data", "out", "goes_counts", str_replace(f, "_vpds", "")))
       
       # If there were no GOES fire detections for this landcover type, then there
       # will be 0 rows in the dataframe, and the loop should iterate to the next file
@@ -53,7 +53,7 @@ for(f in vpd_files){
       data.table::setkey(goes, nid, rounded_datetime)
       
       # Read VPD data and set the key
-      vpds <- data.table::fread(file.path("data", "vpd_lc", f), key = c("nid"))
+      vpds <- data.table::fread(file.path("data", "out", "vpd_lc", f), key = c("nid"))
       
       # Subset VPD dataframe to just rows where there are GOES detections associated
       # with the FIRED event; this should speed up the creation of the rounded_datetime
@@ -74,6 +74,9 @@ for(f in vpd_files){
       # the VPD values for that 'nid' and 'rounded_datetime' don't have 
       # GOES detections
       vpds_goes <- goes[vpds][is.na(fire_scenes_per_hour), fire_scenes_per_hour := 0]
+      
+      # Remove all nid that had no fires across their entire duration
+      vpds_goes <- vpds_goes[, .SD[sum(fire_scenes_per_hour) > 0], ,by = .(nid)]
       
       # SECOND KEY STEP HERE for getting dataframe into analysis-ready format
       # We need to remove all the leading and trailing hours of each fire event that

@@ -42,9 +42,10 @@ gamready_files <- list.files(here("data", "out", "gamready"),
   arrange(-size) %>% 
   dplyr::filter(str_detect(file, "Polar", negate = TRUE))
 
-dir.create(here("data", "mods"), 
+dir.create(here("data", "out", "mods"), 
            showWarnings = FALSE, recursive = TRUE)
 
+(start <- Sys.time())
 # Fit models for each ecoregion
 for(i in 1:nrow(gamready_files)){
   f<- gamready_files[i, "file"] %>% pull
@@ -54,7 +55,7 @@ for(i in 1:nrow(gamready_files)){
     str_replace("_gamready.csv", "") %>% 
     basename()
   
-  outname <- here("data", "mods", paste0(out_fn_base, "-gam.rds"))
+  outname <- here("data", "out", "mods", paste0(out_fn_base, "-gam.rds"))
   
   if (file.exists(outname)) next
   
@@ -141,3 +142,4 @@ for(i in 1:nrow(gamready_files)){
   posterior_predictions %>%
     write_csv(gsub("-gam.rds", "-gam-predictions.csv", outname))
 }
+(difftime(Sys.time(), start, units = "mins"))

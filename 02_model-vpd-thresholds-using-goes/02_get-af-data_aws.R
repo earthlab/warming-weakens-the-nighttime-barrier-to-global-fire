@@ -9,14 +9,12 @@ library(future)
 
 get_latest_goes <- FALSE
 
-dir.create("data/raw/", recursive = TRUE, showWarnings = FALSE)
-
 if(get_latest_goes | !file.exists("data/out/goes16-filenames.csv")) {
   source("01_get-goes16/get-af-metadata.R")
 }  
 
 # Read in the GOES metadata acquired from Amazon Earth using get-af-metadata.R script
-goes_af <- readr::read_csv(file = "data/out/goes16-filenames.csv", col_types = "ciiiiinicTTTccccc")
+goes_af <- read.csv("data/out/goes16-filenames.csv")
 
 # Get the flag values that are important using an example .nc file if not done already
 # flag_vals                            flag_meanings
@@ -55,9 +53,17 @@ fire_flags <-
   dplyr::pull(flag_vals)
 
 # Function that downloads the next GOES-16 image, reads it into memory using the {terra} package
-get_goes_points <- function(aws_path, filename, scan_center, local_path) {
+# get_goes_points <- function(aws_path, filename, scan_center, local_path) {
+get_goes_points <- function(this_batch) {
+    
+  out <- vector(mode = "list", length = nrow(this_batch))
   
-  # Round the image datetime to the nearest hour
+  for (k in 1:nrow(this_batch)) {
+    # Read in the .nc file using the {terra} package in order to preserve CRS data and values properly (and its fast!)
+    
+    goes <- terra::rast(glue::glue("data/raw/goes16/{this_batch$fullname[k]}"))
+    
+    # Round the image datetime to the nearest hour
   rounded_datetime <- 
     scan_center %>% 
     lubridate::parse_date_time2(orders = "%Y%m%d%H%M%S") %>% # lubridate::ymd_hms() is failing me here for e.g., "2020052200050.9"
@@ -110,6 +116,9 @@ get_goes_points <- function(aws_path, filename, scan_center, local_path) {
   rm(goes)
   rm(goes_modis_sinu)
   rm(cellindex)
+  }
+  
+  out[[k]] <- dplyr::tibble(local_path_full = this_batch$local_path_full[k], processed_filename = this_batch$processed_filename[k], crs = this_crs)
   
   return(NULL)
 }
@@ -166,8 +175,8 @@ processed_goes <-
 # Parallelize on each of the EC2 instances
 
 # divide the goes_af into batches
-n_batches <- 1
-n_subbatches <- 20 # number of cores
+n_batches <- 20
+# n_subbatches <- 20 # number of cores
 
 base::set.seed(1959)
 # Only need to process the GOES file if processed data don't yet exist
@@ -179,7 +188,26 @@ batches <-
                                  "OR_ABI-L2-FDCF-M3_G16_s20181231215382_e20181231226149_c20181231226258",
                                  "OR_ABI-L2-FDCF-M3_G16_s20183241845341_e20183241856108_c20183241856213",
                                  "OR_ABI-L2-FDCF-M6_G16_s20202471650186_e20202471659494_c20202471700318"))) %>% 
+  dplyr::mutate(filename = stringr::str_sub(filename, start = 1, end = -4),
+                local_path = glue::glue("data/raw/goes16/{scan_center}_{filename}.nc")) %>% 
+  # lubridate::ymd_hms() is failing me here for e.g., "2020052200050.9"
+  dplyr::mutate(rounded_datetime = lubridate::round_date(lubridate::parse_date_time2(scan_center, orders = "%Y%m%d%H%M%S"), unit = "hour")
+) %>% 
   base::split(f = sample(1:n_batches, size = nrow(.), replace = TRUE))
+
+
+lubridate::round_date(lubridate::parse_date_time2(scan_center, orders = "%Y%m%d%H%M%S"), unit = "hour")
+
+%>% 
+  # lubridate::ymd_hms() is failing me here for e.g., "2020052200050.9"
+  lubridate::round_date(scan_center, unit = "hour")
+
+rounded_datetime_txt <- 
+  paste0(lubridate::year(rounded_datetime),
+         stringr::str_pad(lubridate::month(rounded_datetime), width = 2, side = "left", pad = "0"),
+         stringr::str_pad(lubridate::day(rounded_datetime), width = 2, side = "left", pad = "0"),
+         stringr::str_pad(lubridate::hour(rounded_datetime), width = 2, side = "left", pad = "0"),
+         "00")
 
 # multicore processing for batch j
 j <- 1

@@ -9,10 +9,11 @@ dir.create("data/out/", showWarnings = FALSE, recursive = TRUE)
 get_latest_goes <- TRUE
 
 # Sync all GOES-16 data between 2017 and 2020
+# Took about 12 hours on a m5.4xlarge EC2 instance
+# 156,159 total files, about 475GB
 pbsapply(2017:2020, FUN = function(year) {
   system2(command = "aws", args = glue::glue("s3 sync s3://noaa-goes16/ABI-L2-FDCF/{year}/  data/raw/goes16/{year}/"), stdout = TRUE)
 })
-
 
 if(get_latest_goes | !file.exists("data/out/goes16-filenames.csv")) {
   # GOES-16 record begins on 2017-05-24

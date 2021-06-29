@@ -2,17 +2,15 @@ library(tidyverse)
 library(glue)
 library(terra)
 library(sf)
-library(slider)
 library(purrr)
-library(furrr)
-library(future)
+library(pbapply)
 
 dir.create("data/out/goes16/", showWarnings = FALSE)
 
 get_latest_goes <- FALSE
 
 if(get_latest_goes | !file.exists("data/out/goes16-filenames.csv")) {
-  source("01_get-goes16/get-af-metadata.R")
+  source("02_model-vpd-thresholds-using-goes/01_get-af-metadata.R")
 }  
 
 # Read in the GOES metadata acquired from Amazon Earth using get-af-metadata.R script
@@ -114,12 +112,8 @@ processed_goes <-
   dplyr::mutate(filename_full = stringr::str_sub(string = aws_files_raw, start = 39),
                 filename = stringr::str_sub(string = filename_full, start = 29, end = -5))
 
-# going for a parallelized parallelization approach
-# Divide data into 4 separate batches, work on a different EC2 instance for each
-# Parallelize on each of the EC2 instances
-
 # number of cores on machine
-n_cores <- 4
+n_cores <- 16
 # precision of the progress bar
 pb_precision <- 100
 
@@ -146,5 +140,5 @@ batches <-
 
 # parallelize
 (start <- Sys.time())
-pblapply(X = batches, FUN = get_goes_points)
+pblapply(X = batches, FUN = get_goes_points, cl = n_cores)
 (difftime(Sys.time(), start))

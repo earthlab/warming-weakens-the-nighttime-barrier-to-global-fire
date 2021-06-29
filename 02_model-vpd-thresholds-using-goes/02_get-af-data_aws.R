@@ -58,29 +58,26 @@ get_goes_points <- function(this_batch) {
   
   for (k in 1:nrow(this_batch)) {
     # Read in the .nc file using the {terra} package in order to preserve CRS data and values properly (and its fast!)
-    goes <- terra::rast(glue::glue("data/raw/goes16/{this_batch$fullname[k]}"))
+    # goes <- terra::rast(glue::glue("data/raw/goes16/{this_batch$fullname[k]}"))
+    goes <- stars::read_stars(glue::glue("data/raw/goes16/{this_batch$fullname[k]}"))
+    
     scan_center <- this_batch$scan_center[k]
     rounded_datetime <- this_batch$rounded_datetime[k]
     rounded_datetime_txt <- this_batch$rounded_datetime_txt[k]
     filename <- this_batch$filename[k]
     
-    # For joining to our curvilinear grid later, if we wish, we also want to add a
-    # new raster layer with the cellindex values
-    cellindex <- goes["DQF"]
-    cellindex <- terra::setValues(x = cellindex, values = terra::cells(cellindex)) %>% stats::setNames("cellindex")
-    
-    # Stack the original .nc file with the `cellindex` raster layer
-    goes <- c(goes, cellindex)
-    
     # Get the crs of the .nc file; This will be important later because the satellite moved in 2017
     # from its initial testing position to its operational position, and so the raster cells
     # are representing different areas on the Earth when that happened (encoded in the CRS though)
-    goes_crs <- terra::crs(goes)
+    goes_crs <- sf::st_crs(goes)
     
     goes_modis_sinu <-
       goes %>%
-      terra::as.data.frame(xy = TRUE) %>%
-      dplyr::filter(Mask %in% fire_flags) %>%
+      data.table::as.data.table() %>%
+      # For joining to our curvilinear grid later, if we wish, we also want to add the cellindex values
+      .[, cellindex := 1:nrow(.)] %>% 
+      # Filter to all cells with a Mask value indicating fire
+      .[Mask %in% fire_flags] %>%
       sf::st_as_sf(coords = c("x", "y"), crs = goes_crs, remove = FALSE) %>%
       sf::st_transform("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs") %>%
       dplyr::mutate(scan_center = scan_center) %>%
@@ -90,7 +87,7 @@ get_goes_points <- function(this_batch) {
                     sinu_y = sf::st_coordinates(.)[, 2]) %>%
       sf::st_drop_geometry()
     
-    readr::write_csv(x = goes_modis_sinu, file = glue::glue("data/out/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"))
+    data.table::fwrite(x = goes_modis_sinu, file = glue::glue("data/out/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"))
     
     # unlink(this_batch$fullname[k])
     # unlink(glue::glue("data/out/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"))
@@ -115,7 +112,7 @@ processed_goes <-
 # number of cores on machine
 n_cores <- 16
 # precision of the progress bar
-pb_precision <- 100
+pb_precision <- 1000
 
 base::set.seed(1959)
 # Only need to process the GOES file if processed data don't yet exist

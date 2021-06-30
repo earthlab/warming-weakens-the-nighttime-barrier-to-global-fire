@@ -11,9 +11,22 @@ get_latest_goes <- TRUE
 # Sync all GOES-16 data between 2017 and 2020
 # Took about 12 hours on a m5.4xlarge EC2 instance
 # 156,159 total files, about 475GB
-pbsapply(2017:2020, FUN = function(year) {
-  system2(command = "aws", args = glue::glue("s3 sync s3://noaa-goes16/ABI-L2-FDCF/{year}/  data/raw/goes16/{year}/"), stdout = TRUE)
-})
+# Instead, seems to work better to sync by year, each on a different EC2 instance
+
+# 2017 includes 20,371 files (126 of which are actually labeled as 2000; 
+# Additionally, 1 isn't readable-- see dplyr::filter() statement in next script 
+# for excluding it)
+system2(command = "aws", args = "s3 sync s3://noaa-goes16/ABI-L2-FDCF/2017/  data/raw/goes16/2017/", stdout = TRUE)
+
+# 2018 includes 35,019 files (2 of which aren't readable; see dplyr::filter()
+# statement in next script for excluding)
+# system2(command = "aws", args = "s3 sync s3://noaa-goes16/ABI-L2-FDCF/2018/  data/raw/goes16/2018/", stdout = TRUE)
+
+# 2019 includes XXXXX files
+# system2(command = "aws", args = "s3 sync s3://noaa-goes16/ABI-L2-FDCF/2019/  data/raw/goes16/2019/", stdout = TRUE)
+
+# 2020 includes XXXXXX files
+# system2(command = "aws", args = "s3 sync s3://noaa-goes16/ABI-L2-FDCF/2020/  data/raw/goes16/2020/", stdout = TRUE)
 
 if(get_latest_goes | !file.exists("data/out/goes16-filenames.csv")) {
   # GOES-16 record begins on 2017-05-24

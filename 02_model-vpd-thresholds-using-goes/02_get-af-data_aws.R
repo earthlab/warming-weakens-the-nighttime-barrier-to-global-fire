@@ -71,6 +71,12 @@ get_goes_points <- function(this_batch) {
     # are representing different areas on the Earth when that happened (encoded in the CRS though)
     goes_crs <- sf::st_crs(goes)
     
+    # convert to a data.table in order to filter to just fire pixels, then
+    # coerce back to spatial object and transform to CRS of MODIS sinusoidal
+    # projection so we can get coordinates of the GOES active fire pixel in
+    # same projection as FIRED product (based on MODIS burned area)
+    # Finally, drop the geometry and keep the coordinates encoded as numeric
+    # values in the data.frame
     goes_modis_sinu <-
       goes %>%
       data.table::as.data.table() %>%
@@ -87,16 +93,11 @@ get_goes_points <- function(this_batch) {
                     sinu_y = sf::st_coordinates(.)[, 2]) %>%
       sf::st_drop_geometry()
     
+    # write to disk
     data.table::fwrite(x = goes_modis_sinu, file = glue::glue("data/out/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"))
-    
-    # unlink(this_batch$fullname[k])
-    # unlink(glue::glue("data/out/goes16/{rounded_datetime_txt}_{scan_center}_{filename}.csv"))
-    # 
-    # rm(goes)
-    # rm(goes_modis_sinu)
-    # rm(cellindex)
   }
   
+  # sync to cloud storage after each batch
   system2(command = "aws", args = glue::glue("s3 sync data/out/goes16/ s3://earthlab-mkoontz/goes16/"))
   
   return(NULL)
@@ -110,7 +111,11 @@ processed_goes <-
                 filename = stringr::str_sub(string = filename_full, start = 29, end = -5))
 
 # number of cores on machine
-n_cores <- 16
+# m5a.12xlarge Amazon Web Services EC2 instance has 48 cores and 192GB of RAM
+# Only use 32 cores to avoid overloading memory
+# Takes about 24 hours to process all data for a full year (note 2017 data starts
+# at the end of May, so less than a complete year)
+n_cores <- 32
 # precision of the progress bar
 pb_precision <- 1000
 
@@ -120,6 +125,8 @@ batches <-
   goes_af %>% 
   dplyr::mutate(filebase = stringr::str_sub(string = filename, start = 1, end = -4)) %>% 
   dplyr::filter(!(filebase %in% processed_goes$filename)) %>% 
+  # trial and error showed us that these files are unreadable, as downloaded from the AWS Earth platform
+  # so wse exclude them
   dplyr::filter(!(filebase %in% c("OR_ABI-L2-FDCF-M3_G16_s20172632115407_e20172632126173_c20172632126283",
                                   "OR_ABI-L2-FDCF-M3_G16_s20181231215382_e20181231226149_c20181231226258",
                                   "OR_ABI-L2-FDCF-M3_G16_s20183241845341_e20183241856108_c20183241856213",
@@ -133,7 +140,8 @@ batches <-
                                               stringr::str_pad(lubridate::day(rounded_datetime), width = 2, side = "left", pad = "0"),
                                               stringr::str_pad(lubridate::hour(rounded_datetime), width = 2, side = "left", pad = "0"),
                                               "00")) %>% 
-  base::split(f = sample(1:(pb_precision), size = nrow(.), replace = TRUE))
+  # split into pb_precision parts to be farmed out across cores
+  base::split(f = sample(1:pb_precision, size = nrow(.), replace = TRUE))
 
 # parallelize
 (start <- Sys.time())

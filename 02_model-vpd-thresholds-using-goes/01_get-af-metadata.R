@@ -10,22 +10,26 @@ get_latest_goes <- TRUE
 
 # Sync all GOES-16 data between 2017 and 2020
 # Took about 12 hours on a m5.4xlarge EC2 instance
-# 156,159 total files, about 475GB
+# 156,159 total files [156,147 unique files], about 475GB
 # Instead, seems to work better to sync by year, each on a different EC2 instance
 
-# 2017 includes 20,371 files (126 of which are actually labeled as 2000; 
+# 2017 includes 20,368 files (126 of which are actually labeled as 2000; 
 # Additionally, 1 isn't readable-- see dplyr::filter() statement in next script 
 # for excluding it)
 system2(command = "aws", args = "s3 sync s3://noaa-goes16/ABI-L2-FDCF/2017/  data/raw/goes16/2017/", stdout = TRUE)
 
-# 2018 includes 35,019 files (2 of which aren't readable; see dplyr::filter()
+# 2018 includes 35,017 files (2 of which aren't readable; see dplyr::filter()
 # statement in next script for excluding)
 # system2(command = "aws", args = "s3 sync s3://noaa-goes16/ABI-L2-FDCF/2018/  data/raw/goes16/2018/", stdout = TRUE)
 
-# 2019 includes XXXXX files
+# 2019 includes 48,098 files
+# Note there are 12 duplicate files, all of which occur on the 161st day of 2019. 
+# It appears that GOES images that started near the end of the hour didn't finish imaging
+# until into the next hour, so the same file was included for each hour overlapped
+# by the imaging.
 # system2(command = "aws", args = "s3 sync s3://noaa-goes16/ABI-L2-FDCF/2019/  data/raw/goes16/2019/", stdout = TRUE)
 
-# 2020 includes XXXXXX files
+# 2020 includes 52,531 files
 # system2(command = "aws", args = "s3 sync s3://noaa-goes16/ABI-L2-FDCF/2020/  data/raw/goes16/2020/", stdout = TRUE)
 
 if(get_latest_goes | !file.exists("data/out/goes16-filenames.csv")) {

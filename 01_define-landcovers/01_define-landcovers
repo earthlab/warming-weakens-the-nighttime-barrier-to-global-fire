@@ -1,5 +1,0 @@
-For defining Landcovers based on Koppen-Geiger climate classifications and MODIS landcover type, see:
-
-1) https://github.com/admahood/tmin/blob/main/r/download_landcover.r 
-2) https://github.com/admahood/tmin/blob/main/r/process_modis_landcover.r 
-3) https://github.com/admahood/tmin/blob/main/r/get_lc.R

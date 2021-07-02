@@ -7,28 +7,27 @@ invisible(sapply(libs, library, character.only=TRUE, quietly=TRUE))
 # data import ==================================================================
 
 # goes
-system("aws s3 sync s3://earthlab-mkoontz/goes16 data/goes16 --only-show-errors")
+system("aws s3 sync s3://earthlab-mkoontz/goes16 data/out/goes16 --only-show-errors")
 # system("aws s3 sync s3://earthlab-amahood/night_fires/gamready data/gamready --only-show-errors")
 
 # fired polygons
-system("aws s3 sync s3://earthlab-amahood/night_fires/lc_splits data/fired --only-show-errors")
+system("aws s3 sync s3://earthlab-amahood/night_fires/lc_splits data/out/fired --only-show-errors")
 
 # effort (number of goes scenes per hour)
-system("aws s3 cp s3://earthlab-mkoontz/goes16meta/sampling-effort-goes16.csv data/segoes.csv")
+system("aws s3 cp s3://earthlab-mkoontz/goes16meta/sampling-effort-goes16.csv data/out/sampling-effort-goes16.csv")
 
 
 # The Business =================================================================
 
 # extracting the needed info from the goes extract file names
-goes_files<- list.files("data/goes16", pattern = ".csv", full.names = TRUE) %>%
+goes_files<- list.files("data/out/goes16", pattern = ".csv", full.names = TRUE) %>%
   as_tibble() %>%
   dplyr::rename(filename = value) %>%
   separate(filename, c("datetime", "datetime_mid"), sep = "_", remove=FALSE) %>%
   mutate(date = str_sub(datetime,13,20) %>% as.Date(date, format="%Y%m%d"))
-fired_files <- list.files("data/fired", pattern = ".gpkg", full.names = TRUE)
-dir.create("data/out")
+fired_files <- list.files("data/out/fired", pattern = ".gpkg", full.names = TRUE)
 
-effort <- vroom("data/segoes.csv") %>%
+effort <- vroom("data/out/sampling-effort-goes16.csv") %>%
   dplyr::select(n_scenes = n_scenes_per_hour, rounded_datetime)
 
 # extracting the detection counts to each fire perimeter in a nested for loop 
@@ -42,7 +41,7 @@ for(i in 1:length(fired_files)){
   fired_crs <- st_crs(fired)
   out_file <- fired_files[i] %>%
     str_replace(".gpkg", ".csv") %>%
-    str_replace("data/fired/", "")
+    str_replace("data/out/fired/", "")
   
   corz<- detectCores()-1
   registerDoParallel(corz)
@@ -87,7 +86,7 @@ for(i in 1:length(fired_files)){
   print(Sys.time()-t0)
   
   if(!is.null(fc)){  
-  write_csv(fc,file.path("data","out", out_file))
-  system(paste0("aws s3 cp ", file.path("data","out", out_file), 
+  write_csv(fc,file.path("data","out", "goes_counts", out_file))
+  system(paste0("aws s3 cp ", file.path("data","out", "goes_counts", out_file), 
                 " s3://earthlab-amahood/night_fires/goes_counts/", out_file))}
 }

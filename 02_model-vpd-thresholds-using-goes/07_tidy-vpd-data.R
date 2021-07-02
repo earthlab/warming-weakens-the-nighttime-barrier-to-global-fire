@@ -1,3 +1,9 @@
+# Just prior to this script, hourly VPD data were extracted from ERA-5 by John Abatzoglou 
+# by providing a unique event ID, a lon/lat centroid of that event, and a start/end date
+# (buffered by 7 days on either side of the start and end of the event itself)
+# Data were returned in a "ragged" csv format, with one row per fire event, the first
+# column representing midnight on the provided start date (i.e., 7 days prior to the fire's
+# start date), the second column was 01:00Z on the start date, etc.
 
 library(sf); library(tidyverse); library(purrr); library(data.t)
 

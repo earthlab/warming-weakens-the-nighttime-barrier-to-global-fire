@@ -1,0 +1,6 @@
+Define fire events separately for both North and South America using the FIRED algorithm (Balch et al., 2020) which uses a spatio-temporal moving window to aggregate the monthly burn date pixels (463-m resolution) from the MODIS MCD64A1 burned area product into fire event boundaries.
+
+See https://github.com/earthlab/firedpy/ for code to run the algorithm using a spatial criteria of 1 pixel and a temporal criteria of 5 days.
+
+Save to data/out/fired_na_2017-.gpkg for North America events.
+Save to data/out/fired_sa_2017-.gpkg for South America events.

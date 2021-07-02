@@ -1,4 +1,5 @@
-# streamline ids for NA and SA
+# split VPD data by landcover
+
 library(tidyverse) ; library(sf); library(vroom); library(lubridate); library(data.table)
 
 system("aws s3 sync s3://earthlab-amahood/night_fires/fired_polys data")
@@ -6,47 +7,7 @@ system("aws s3 sync s3://earthlab-amahood/night_fires/fired_polys data")
 # effort (number of goes scenes per hour)
 system("aws s3 cp s3://earthlab-mkoontz/goes16meta/sampling-effort-goes16.csv data/sampling-effort-goes16.csv")
 
-# polygons =====================================================================
-# sa first
 
-sa<- st_read("data/fired_sa_2017-.gpkg") %>%
-  dplyr::select(-is_sa)
-
-sa_rows <- nrow(sa)
-
-lut_saids <- 1:sa_rows
-names(lut_saids) <- sa$id
-
-sa %>%
-  mutate(id=as.character(id),
-         nid = lut_saids[id] %>% as.numeric(),
-         id = as.numeric(id)) %>%
-  mutate(lat = st_coordinates(st_transform(st_centroid(.), 4326))[,2])%>%
-  st_write("data/fired_sa_2017-nids.gpkg", delete_dsn=TRUE)
-
-system("aws s3 cp data/fired_sa_2017-nids.gpkg s3://earthlab-amahood/night_fires/fired_polys/fired_sa_2017-nids.gpkg")
-
-rm(sa)
-# north america
-
-na <- st_read("data/fired_na_2017-.gpkg") %>%
-  dplyr::select(-is_na)
-
-lut_naids <- 1:nrow(na) + sa_rows
-names(lut_naids) <- na$id
-
-save(lut_naids, lut_saids, file = "data/luts.Rda")
-system("aws s3 cp data/luts.Rda s3://earthlab-amahood/night_fires/luts.Rda")
-
-na %>%
-  mutate(id=as.character(id),
-         nid = lut_naids[id] %>% as.numeric(),
-         id = as.numeric(id)) %>%
-  mutate(lat = st_coordinates(st_transform(st_centroid(.), 4326))[,2]) %>%
-  st_write("data/fired_na_2017-nids.gpkg", delete_dsn=T)
-system("aws s3 cp data/fired_na_2017-nids.gpkg s3://earthlab-amahood/night_fires/fired_polys/fired_na_2017-nids.gpkg")
-
-rm(na)
 # now vpd monsters =============================================================
 system("aws s3 cp s3://earthlab-amahood/night_fires/luts.Rda data/luts.Rda")
 load("data/luts.Rda")

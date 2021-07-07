@@ -38,7 +38,7 @@ event_count <- pblapply(1:nrow(gamready_files), FUN = function(i) {
     dplyr::mutate(area_km2 = as.numeric(sf::st_area(.)) / 1e6) %>% 
     sf::st_drop_geometry()
   
-  if(!file.exists(here::here("data", "mods", paste0(gamready_files$lc_name[i], "-gam.rds")))) {
+  if(!file.exists(here::here("data", "out", "mods", paste0(gamready_files$lc_name[i], "-gam.rds")))) {
     return(data.frame(lc_name = gsub(pattern = "_", replacement = " ", x = gamready_files$lc_name[i]), 
                       n_events_orig = length(nids),
                       sum_area_events_orig_km2 = sum(event_polys$area_km2),
@@ -58,7 +58,7 @@ event_count <- pblapply(1:nrow(gamready_files), FUN = function(i) {
     
   }
   
-  gam_fit <- readr::read_rds(here::here("data", "mods", paste0(gamready_files$lc_name[i], "-gam.rds")))
+  gam_fit <- readr::read_rds(here::here("data", "out", "mods", paste0(gamready_files$lc_name[i], "-gam.rds")))
 
   nids_subset <- unique(gam_fit$model$nid)
   
@@ -126,7 +126,7 @@ all_nids <-
 subset_nids <- 
   gamready_files %>% 
   filter(lc_name %in% gsub(pattern = " ", replacement = "_", x = out[!is.na(out$vpd_thresh_hpa), "lc_name"])) %>% 
-  mutate(rds_file = here::here("data", "mods", paste0(lc_name, "-gam.rds"))) %>% 
+  mutate(rds_file = here::here("data", "out", "mods", paste0(lc_name, "-gam.rds"))) %>% 
   pull(rds_file) %>% 
   pblapply(FUN = function(x) { as.numeric(unique(readr::read_rds(x)$model$nid)) }) %>% 
   unlist()
@@ -173,8 +173,12 @@ total_row <-
 total_row
 out
 
+out_just_with_vpdt <- rbind(out_with_vpd_thresh, total_row) %>% 
+  mutate(vpd_thresh_kpa = vpd_thresh_hpa / 10) %>% 
+  arrange(vpd_thresh_hpa)
+
 write.csv(x = out, file = "tables/gam-model-properties.csv", row.names = FALSE)
-write.csv(x = rbind(out_with_vpd_thresh, total_row), file = "tables/gam-model-properties-with-vpd-thresh.csv", row.names = FALSE)
+write.csv(x = out_just_with_vpdt, file = "tables/gam-model-properties-with-vpd-thresh.csv", row.names = FALSE)
 
 system2(command = "aws", args = "s3 cp tables/gam-model-properties.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/tables/gam-model-properties.csv")
 system2(command = "aws", args = "s3 cp tables/gam-model-properties-with-vpd-thresh.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/tables/gam-model-properties-with-vpd-thresh.csv")

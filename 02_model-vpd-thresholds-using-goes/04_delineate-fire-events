@@ -1,6 +1,18 @@
-Define fire events separately for both North and South America using the FIRED algorithm (Balch et al., 2020) which uses a spatio-temporal moving window to aggregate the monthly burn date pixels (463-m resolution) from the MODIS MCD64A1 burned area product into fire event boundaries.
+## downloading FIRED data or producing it with firedpy
 
-See https://github.com/earthlab/firedpy/ for code to run the algorithm using a spatial criteria of 1 pixel and a temporal criteria of 5 days.
+Define fire events separately for both North and South America using the FIRED algorithm (Balch et al., 2020). This software uses a spatio-temporal moving window to aggregate the monthly burn date pixels (463-m resolution) from the MODIS MCD64A1 burned area product into fire event boundaries.
+
+We produced fire perimeters using a spatial paramter of 1 463m pixel and a temporal parameter of 5 days. This will be available on CU scholar in the Earth Lab Data collection.
+
+Earth Lab Data URL: https://scholar.colorado.edu/collections/pz50gx05h
+
+Night Fires FIRED input URL: https://scholar.colorado.edu/concern/datasets/d217qq78g
+
+One can also reproduce the fired data on their own using the firedpy code, available at www.github.com/earthlab/firedpy. Be advised, running this code for the entire western hemisphere will me a tall order for most normal laptops. We used cloud computing to do it. That said, it is fairly simple to accomplish. Simply find a shapefile that represents North and South America, follow the installation instructions on the github page, and type this in the console for each continent:
+
+`firedpy -spatial 1 -temporal 5 -tiles <yourpolygonhere.gpkg> --shapefile -daily no`
+
+The output will be a polygon shapefile in .gpkg format. Once you have this file, convert subtract 7 days from the first date and add 7 days to the last date for each event, and filter out any events that occurred before 2017.
 
 Save to data/out/fired_na_2017-.gpkg for North America events.
 Save to data/out/fired_sa_2017-.gpkg for South America events.

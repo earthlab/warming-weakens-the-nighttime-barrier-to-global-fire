@@ -13,6 +13,7 @@ system2(command = "aws", args = "s3 sync s3://earthlab-mkoontz/MODIS-overpass-co
 system2(command = "aws",
         args = "s3 sync s3://earthlab-mkoontz/mcd14ml_analysis-ready data/out/mcd14ml_analysis-ready")
 
+q90 <- function(x) quantile(x, .9) %>% as.numeric()
 
 # overpass corrections
 overpass_files <- list.files(path = "data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/year-month/", full.names = TRUE)
@@ -65,7 +66,7 @@ monthly_afd_l <-
                     acq_year = as.character(lubridate::year(acq_dttme)))]
     year_afd <- year_afd[confidence >= 10 & type == 0]
     
-    year_month_afd <- year_afd[, .(sum_frp = sum(frp), mean_frp = mean(frp), n = .N), by = .(cell_id_lc, lc, x_lc, y_lc, acq_month, acq_year, dn_detect)]
+    year_month_afd <- year_afd[, .(sum_frp = sum(frp), q90_frp = q90(frp), mean_frp = mean(frp), n = .N), by = .(cell_id_lc, lc, x_lc, y_lc, acq_month, acq_year, dn_detect)]
     
     year_month_afd_op_l <- vector(mode = "list", length = length(unique_months))
     

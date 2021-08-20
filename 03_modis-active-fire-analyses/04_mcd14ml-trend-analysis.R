@@ -15,6 +15,8 @@ dir.create("figs", showWarnings = FALSE)
 #   dplyr::left_join(y = lc_lookup, by = c(lc = "koppen_modis_code")) %>% 
 #   as.data.table()
 
+# temporary fix by alm
+system("aws s3 sync s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out data/out")
 lc_lookup_burnable <- read.csv("data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
 
 lc_area <- 

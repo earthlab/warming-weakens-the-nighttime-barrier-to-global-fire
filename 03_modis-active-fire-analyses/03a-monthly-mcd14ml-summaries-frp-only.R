@@ -67,22 +67,21 @@ monthly_afd_l <-
     year_afd <- year_afd[confidence >= 10 & type == 0]
     
     year_month_afd_gl <- year_afd[, .(q90_frp = q90(frp)), 
-                               by = .(acq_month, acq_year, dn_detect)]
+                               by = .(acq_month, acq_year, dn_detect)] %>%
+      mutate(scale = "global",
+             lc = "global")
     
     year_month_afd_lc <- year_afd[, .(q90_frp = q90(frp)), 
-                               by = .(str_c("lc_", lc), acq_month, acq_year, dn_detect)]%>% 
-      na.omit() %>%
-      pivot_wider(names_from = lc, values_from = c(q90_frp))
+                               by = .(lc, acq_month, acq_year, dn_detect)]%>% 
+      mutate(scale = "landcoverXkoppen") 
     
     year_month_afd_k <- year_afd[, .(q90_frp = q90(frp)), 
-                                  by = .(str_c("koppen_",str_sub(lc,1,1)), acq_month, acq_year, dn_detect)]%>% 
-      na.omit() %>%
-      pivot_wider(names_from = str_sub, values_from = c(q90_frp))
+                                  by = .(str_sub(lc,1,1), acq_month, acq_year, dn_detect)]%>% 
+      mutate(scale = "koppen") %>%
+      dplyr::rename(lc = str_sub)
     
-    year_month_afd<- left_join(year_month_afd_gl,year_month_afd_lc,
-                               by=c("acq_month", "acq_year", "dn_detect")) %>%
-      left_join(year_month_afd_k,
-                by=c("acq_month", "acq_year", "dn_detect"))
+    year_month_afd<- bind_rows(year_month_afd_gl,year_month_afd_lc) %>%
+      bind_rows(year_month_afd_k)
     
     return(year_month_afd)
     

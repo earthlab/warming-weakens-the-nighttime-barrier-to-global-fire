@@ -15,6 +15,9 @@ system2(command = "aws",
 
 q90 <- function(x, ...) quantile(x, .9, na.rm = TRUE) %>% as.numeric()
 
+lut_kop <-c("Equatorial", "Arid", "Temperate", "Boreal")
+names(lut_kop) <-c(1,2,3,4)
+
 # overpass corrections
 overpass_files <- list.files(path = "data/out/modis-overpass-corrections/MODIS-overpass-counts_0.25_analysis-ready/year-month/", full.names = TRUE)
 
@@ -73,12 +76,14 @@ monthly_afd_l <-
     
     year_month_afd_lc <- year_afd[, .(q90_frp = q90(frp)), 
                                by = .(lc, acq_month, acq_year, dn_detect)]%>% 
-      mutate(scale = "landcoverXkoppen") 
+      mutate(scale = "landcoverXkoppen",
+             lc = as.character(lc)) 
     
     year_month_afd_k <- year_afd[, .(q90_frp = q90(frp)), 
                                   by = .(str_sub(lc,1,1), acq_month, acq_year, dn_detect)]%>% 
       mutate(scale = "koppen") %>%
-      dplyr::rename(lc = str_sub)
+      dplyr::rename(lc = str_sub) %>%
+      mutate(lc = lut_kop[lc])
     
     year_month_afd<- bind_rows(year_month_afd_gl,year_month_afd_lc) %>%
       bind_rows(year_month_afd_k)
@@ -89,7 +94,8 @@ monthly_afd_l <-
 
 parallel::stopCluster(cl)
 
-monthly_afd <- data.table::rbindlist(monthly_afd_l, fill = TRUE)
+monthly_afd <- data.table::rbindlist(monthly_afd_l, fill = TRUE) %>%
+  mutate(date = as.Date(paste(acq_year, acq_month, "01", sep = "-")))
 
 data.table::fwrite(x = monthly_afd, file = "data/out/mcd14ml_q90-frp_month-lc-kop-daynight-summary.csv")
 
@@ -97,17 +103,15 @@ system2(command = "aws", args = "s3 cp data/out/mcd14ml_q90-frp_month-lc-kop-day
 
 # basic plots
 
-ggplot(monthly_afd, aes(x=as.Date(paste(acq_year, acq_month, "01", sep="-")), y= q90_frp, color = dn_detect)) +
+ggplot(monthly_afd %>% filter(scale == "global"), 
+       aes(x=date, y= q90_frp, color = dn_detect)) +
   geom_line() +
   geom_smooth()
 
-monthly_afd %>% 
-  dplyr::select(acq_month, acq_year, dn_detect, `1`,`2`,`3`,`4`) %>%
-  mutate(date = as.Date(paste(acq_year, acq_month, "01", sep="-"))) %>%
-  pivot_longer(cols = c(`1`, `2`,`3`,`4`), names_to = "koppen", values_to = "q90_frp",
-               names_repair = "minimal") %>%
-  ggplot(aes(x=date, y=q90_frp)) +
+ggplot(monthly_afd %>% filter(scale == "koppen") %>%
+         na.omit(),
+       aes(x=date, y=q90_frp, color = dn_detect)) +
   geom_line() +
-  facet_wrap(~koppen) +
-  geom_smooth(method = "lm")
+  facet_wrap(~lc) +
+  geom_smooth()
  

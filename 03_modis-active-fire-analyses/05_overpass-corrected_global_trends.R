@@ -21,10 +21,10 @@ library(broom)
 posneg_cols <- c("Positive"="#CF6630", "Negative"="#07484D") # colours.cafe palette 582
 mask_col<- #DDCEBF
 daynight_cols <- c("#B2182B","#2166AC") # red is #B2182B
-dir.create("out")
+system("aws s3 sync s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out data/out")
 
 # thresholds ===================================================================
-thresholds <- read_csv("in/csvs_from_michael/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
+thresholds <- read_csv("data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
 burnable_lcs<- pull(thresholds, lc_name)
 # functions ====================================================================
 parallel_theilsen <- function(stack_df, zero_to_na=FALSE, pb =TRUE,
@@ -608,12 +608,12 @@ bind_rows("daytime_afd"=day_counts_trends,
 
 
 # MONTHLY GLOBAL ===============================================================
-wide_df<-read_csv("in/csvs_from_michael/mcd14ml-global-trend-by-month_wide.csv") %>%
+wide_df<-read_csv("data/out/mcd14ml-global-trend-by-month_wide.csv") %>%
   mutate(percent_n_night = prop_n_night*100)%>%
   dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
 
-long_df <- read_csv("in/csvs_from_michael/mcd14ml-global-trend-by-month.csv") 
-
+long_df <- read_csv("data/out/mcd14ml-global-trend-by-month.csv") 
+frp_q90 <- read_csv("data/out/mcd14ml_q90-frp_month-lc-kop-daynight-summary.csv")
 
 day_afd_ts <- long_df %>%
   filter(dn_detect == "day")%>%
@@ -646,6 +646,19 @@ day_frp_ts <- long_df %>%
                                            units = "days"))) %>%
   mblm(mean_frp_per_detection~time, data=.);summary(day_frp_ts)
 
+frp_q90_ts <- frp_q90 %>%
+  filter(dn_detect == "night" & scale == "global") %>%
+  dplyr::mutate(time = as.numeric(difftime(time1 = date, 
+                                           time2 = min(date), 
+                                           units = "days"))) %>%
+  mblm(q90_frp ~ time, data=.);summary(frp_q90_ts)
+
+day_frp_q90_ts <- frp_q90 %>%
+  filter(dn_detect == "day" & scale == "global") %>%
+  dplyr::mutate(time = as.numeric(difftime(time1 = date, 
+                                           time2 = min(date), 
+                                           units = "days"))) %>%
+  mblm(q90_frp~time, data=.);summary(day_frp_q90_ts)
 
 global_row<-bind_rows(tidy(day_afd_ts)%>% mutate(variable = "day_afd_per_op_per_Mkm2"), 
           tidy(night_afd_ts)%>% mutate(variable = "night_afd_per_op_per_Mkm2"), 
@@ -1173,6 +1186,22 @@ df_frp_day <- dts1(pull(long_df%>% filter(dn_detect == "day"), year_month),
 deco_day_frp <- ggdecompose(df_frp_day)+
   xlab("Date")+
   ylab("Mean FRP per Daytime Detection")
+
+df_frp_q90_night <- dts1(pull(frp_q90%>% filter(dn_detect == "night" & scale == "global"), date),
+                     pull(frp_q90%>% filter(dn_detect == "night"& scale == "global"), q90_frp),
+                     12, type = "additive")
+
+deco_night_frp <- ggdecompose(df_frp_q90_night)+
+  xlab("Date")+
+  ylab("Mean FRP per Nighttime Detection")
+
+df_frp_q90_day <- dts1(pull(frp_q90%>% filter(dn_detect == "day" & scale == "global"), date),
+                         pull(frp_q90%>% filter(dn_detect == "day"& scale == "global"), q90_frp),
+                         12, type = "additive")
+
+deco_night_frp <- ggdecompose(df_frp_q90_day)+
+  xlab("Date")+
+  ylab("Mean FRP per Nighttime Detection")
 
 
 ggarrange(deco_day_afd, deco_night_afd, deco_day_frp, deco_night_frp, deco_nf, nrow=3, ncol=2) +

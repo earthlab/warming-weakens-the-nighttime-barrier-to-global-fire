@@ -4,6 +4,7 @@ library(patchwork)
 library(here)
 
 long_pts <- read_csv(here("data", "out", "case_study_data_2017-2020.csv"))
+thresh <- read_csv(here("data", "out", "zero-goes-af-vpd-thresholds-with-landcover-codes.csv"))
 
 last_date_df <- 
   long_pts %>%

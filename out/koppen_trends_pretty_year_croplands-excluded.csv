@@ -1,0 +1,6 @@
+Koppen,percent_afd_night,day_afd_per_op_per_Mkm2,night_afd_per_op_per_Mkm2,mean_frp_per_night_detection,mean_frp_per_day_detection
+Equatorial,0 ,-0.66 *,-0.08 *,-0.11 *,-0.26 *
+Arid,0.08 *,-0.07 ,0 ,0.19 *,0.11 
+Temperate,0.01 ,-0.73 *,-0.05 *,0.02 ,0.25 *
+Boreal,0.2 *,-0.03 ,0.01 ,0.23 *,0.27 *
+Global,0.05 *,-0.51 *,-0.02 ,0.12 *,-0.12 *

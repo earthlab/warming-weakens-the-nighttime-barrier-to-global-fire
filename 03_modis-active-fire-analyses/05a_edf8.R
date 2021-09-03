@@ -18,11 +18,17 @@ library(ggthemes)
 library(viridis)
 library(ggpubr)
 library(broom)
+library(forecast)
+# devtools:: install_github("brisneve/ggplottimeseries")
+library(ggplottimeseries)
 
 posneg_cols <- c("Positive"="#CF6630", "Negative"="#07484D") # colours.cafe palette 582
 mask_col<- #DDCEBF
   daynight_cols <- c("#B2182B","#2166AC") # red is #B2182B
 dir.create("out")
+
+lut_kop<- c("Equatorial", "Arid", "Temperate", "Boreal", "Polar")
+names(lut_kop) <- c(1,2,3,4,5)
 
 # thresholds ===================================================================
 thresholds <- read_csv("data/out/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
@@ -178,11 +184,11 @@ p_3pan_yearly<-ggarrange(p_np,p_afd,  p_frp, nrow=3, labels = c("a", "",""))
 ggsave(p_3pan_yearly,filename = "figs/EDF8a_global_trends_line_plots_year_croplands-excluded.png",
        height =12, width = 6)
 # MONTHLY GLOBAL ===============================================================
-wide_df<-read_csv("data/out/mcd14ml-global-trend-by-month_wide_croplands-excluded.csv") %>%
+wide_df<-read_csv("data/out/mcd14ml-global-trend-by-month_wide.csv") %>%
   mutate(percent_n_night = prop_n_night*100)%>%
   dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
 
-long_df <- read_csv("data/out/mcd14ml-global-trend-by-month_croplands-excluded.csv") 
+long_df <- read_csv("data/out/mcd14ml-global-trend-by-month.csv") 
 
 
 day_afd_ts <- long_df %>%
@@ -261,8 +267,7 @@ xxxx<-predict(nf_ts, interval = "confidence")
 
 # MONTHLY by Koppen ============================================================
 
-lut_kop<- c("Equatorial", "Arid", "Temperate", "Boreal", "Polar")
-names(lut_kop) <- c(1,2,3,4,5)
+
 
 # ts =====
 bind_rows(
@@ -472,9 +477,7 @@ ggarrange(p_k_afd, p_k_np, p_k_frp, nrow=3, labels = c("b", "", "")) +
          height =12, width =12)
 
 # time series decomposition GLOBAL, only seasonal removed ======================
-library(forecast)
-# devtools:: install_github("brisneve/ggplottimeseries")
-library(ggplottimeseries)
+
 
 wide_df<-read_csv("data/out/mcd14ml-global-trend-by-month_wide_croplands-excluded.csv") %>%
   mutate(percent_n_night = prop_n_night*100)%>%
@@ -591,11 +594,11 @@ ggsave(p_deco_3pan, filename = "figs/ts_decompose_croplands-excluded.png", width
 
 # time series decomposition GLOBAL, seasonal and random removed ======================
 
-wide_df<-read_csv("data/out/mcd14ml-global-trend-by-month_wide_croplands-excluded.csv") %>%
+wide_df<-read_csv("data/out/mcd14ml-global-trend-by-month_wide.csv") %>%
   mutate(percent_n_night = prop_n_night*100)%>%
   dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
 
-long_df <- read_csv("data/out/mcd14ml-global-trend-by-month_croplands-excluded.csv") 
+long_df <- read_csv("data/out/mcd14ml-global-trend-by-month.csv") 
 
 p_nf_sr <- dts1(pull(wide_df, year_month),
                 pull(wide_df, percent_n_night),
@@ -698,28 +701,39 @@ p_frp<- bind_rows(df_frp_day%>% na.omit(),
 
 
 p_deco_3pan_t<-ggarrange( p_nf,p_afd,p_frp, nrow=3, ncol=1)
-ggsave(p_deco_3pan_t, filename = "figs/ts_decompose_trend_croplands-excluded.png", width = 8, height =12)
-
-
-
-
-
+ggsave(p_deco_3pan_t, filename = "figs/ts_decompose_trend_croplands-included.png", width = 8, height =12)
 
 # tsdeco KOPPEN =====================
-wide_df_k<-read_csv("data/out/mcd14ml-trend-by-month-koppen_wide_croplands-excluded.csv") %>%
+
+wide_df<-read_csv("data/out/mcd14ml-global-trend-by-month_wide.csv") %>%
+  mutate(percent_n_night = prop_n_night*100)%>%
+  dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
+
+long_df <- read_csv("data/out/mcd14ml-global-trend-by-month.csv") 
+
+wide_df_k<-read_csv("data/out/mcd14ml-trend-by-month-koppen_wide.csv") %>%
   mutate(percent_n_night = prop_n_night*100)%>%
   dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days"))) %>%
-  mutate(koppen = lut_kop[koppen] %>% factor(levels = c("Equatorial", "Arid", "Temperate", "Boreal")))
+  mutate(koppen = lut_kop[koppen] %>% factor(levels = c("Equatorial", "Arid", "Temperate", "Boreal"))) %>%
+  bind_rows(wide_df %>% mutate(koppen = "Global")) %>%
+  mutate(koppen = as.factor(koppen)%>% 
+           fct_relevel(c("Global", "Boreal", "Temperate", "Arid", "Equatorial")))
 
-long_df_k <- read_csv("data/out/mcd14ml-trend-by-month-koppen_croplands-excluded.csv")  %>%
-  mutate(koppen = lut_kop[koppen] %>% factor(levels = c("Equatorial", "Arid", "Temperate", "Boreal")))
+long_df_k <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv")  %>%
+  mutate(koppen = lut_kop[koppen] %>% factor(levels = c("Equatorial", "Arid", "Temperate", "Boreal"))) %>%
+  bind_rows(long_df %>% mutate(koppen = "Global")) %>%
+  mutate(koppen = as.factor(koppen)%>% 
+           fct_relevel(c("Global", "Boreal", "Temperate", "Arid", "Equatorial")))
 
-ks<- c("Equatorial", "Arid", "Temperate", "Boreal")
+ks<- c("Global", "Boreal", "Temperate", "Arid", "Equatorial")
+
+ktp <- read_csv("out/koppen_trends_pretty_year_sr.csv") %>%
+  mutate(Koppen = str_to_title(Koppen))
 
 # night fraction ==============
 p_nfk <- list()
 ts_trends_nf <- list()
-for(i in 1:4){
+for(i in 1:5){
   
   dk <- filter(wide_df_k, koppen == ks[i])
   
@@ -730,32 +744,42 @@ for(i in 1:4){
            timestep = dk$time)%>% 
     na.omit()
 
-  ts_trends_nf<- mblm(seasonal_removed ~ timestep, p_nf_sr, 
+  ts_trends_nf<- mblm(trend ~ timestep, p_nf_sr, 
                       repeated = TRUE) %>%
     predict(interval = "confidence")
   
+  sig <- ktp %>%
+    dplyr::filter(Koppen == ks[i]) %>%
+    dplyr::select(percent_afd_night) %>%
+    pull() %>%
+    str_detect("\\*")
   
-  p_nfk[[i]] <- ggplot(cbind(p_nf_sr, ts_trends_nf), aes(x=date, y=seasonal_removed)) +
+  p_nfk[[i]] <- ggplot(cbind(p_nf_sr, ts_trends_nf), aes(x=date, y=trend)) +
     geom_line(alpha=0.5) +
-    geom_line(aes(y=fit), lwd=1) +
-    geom_line(aes(y=upr), lty =2) +
-    geom_line(aes(y=lwr), lty =2) +
     ggtitle(ks[i])+
     theme_classic() +
     theme(axis.title.x = element_blank())
   
-  if(i == 1){p_nfk[[i]] <- p_nfk[[i]] + ylab("Percent Nighttime Detections")}else{
+  if(sig){
+    p_nfk[[i]] <-p_nfk[[i]]+
+    geom_line(aes(y=fit), lwd=1) +
+    geom_line(aes(y=upr), lty =2) +
+    geom_line(aes(y=lwr), lty =2) }
+  
+  if(i == 1){p_nfk[[i]] <- p_nfk[[i]] + ylab("Percent Nighttime\nDetections")}else{
     p_nfk[[i]] <- p_nfk[[i]] + theme(axis.title.y = element_blank())
   } 
   
 }
 
-p_nf_kop_deco <- ggarrange(plotlist = p_nfk, nrow = 1, ncol =4)
+p_nf_kop_deco <- ggarrange(plotlist = p_nfk, nrow = 1, ncol =5,
+                           widths = c(1.25,1,1,1,1),
+                           labels = c("b","", "", "", "", ""))
 
 # night frp ===============
 p_nfrpk <- list()
 ts_trends_nf <- list()
-for(i in 1:4){
+for(i in 1:5){
   dk <- filter(long_df_k, koppen == ks[i] & dn_detect == "night")
   
   df_frp_night <- dts1(pull(dk, year_month),
@@ -765,28 +789,40 @@ for(i in 1:4){
            timestep = 1:nrow(.))  %>%
     na.omit()
 
-  ts_frp_trend_night <- mblm(seasonal_removed ~ timestep, df_frp_night, repeated = TRUE) %>%
+  mod<-mblm(trend ~ timestep, df_frp_night, repeated = TRUE)
+  
+  ts_frp_trend_night <- mod %>%
     predict(interval = "confidence")
   
+  sig <- ktp %>%
+    dplyr::filter(Koppen == ks[i]) %>%
+    dplyr::select(mean_frp_per_night_detection) %>%
+    pull() %>%
+    str_detect("\\*")
+  
   p_nfrpk[[i]] <- ggplot(cbind(df_frp_night, ts_frp_trend_night),
-                         aes(x=date, y=seasonal_removed)) +
+                         aes(x=date, y=trend)) +
     geom_line(alpha=0.5, color = daynight_cols[2]) +
-    geom_line(aes(y=fit), lwd=1, color = daynight_cols[2]) +
-    geom_line(aes(y=upr), lty =2, color = daynight_cols[2]) +
-    geom_line(aes(y=lwr), lty =2, color = daynight_cols[2]) +
     theme_classic() +
+    ggtitle(ks[i])+
     theme(axis.title.x = element_blank())
+  
+  if(sig){
+    p_nfrpk[[i]] <- p_nfrpk[[i]]+
+      geom_line(aes(y=fit), lwd=1, color = daynight_cols[2]) +
+      geom_line(aes(y=upr), lty =2, color = daynight_cols[2]) +
+      geom_line(aes(y=lwr), lty =2, color = daynight_cols[2]) }
   
   if(i == 1){p_nfrpk[[i]] <- p_nfrpk[[i]] + ylab("Nighttime FRP\nper detection (MW)")}else{
     p_nfrpk[[i]] <- p_nfrpk[[i]] + theme(axis.title.y = element_blank())
   }}
 
-p_nfrp_kop_deco <- ggarrange(plotlist = p_nfrpk, nrow = 1, ncol =4)
+p_nfrp_kop_deco <- ggarrange(plotlist = p_nfrpk, nrow = 1, ncol =5, widths = c(1.25,1,1,1,1), labels = c("a","", "", "", "", ""))
 
 # day frp ===============
 p_dfrpk <- list()
 ts <- list()
-for(i in 1:4){
+for(i in 1:5){
   dk <- filter(long_df_k, koppen == ks[i] & dn_detect == "day")
   
   df <- dts1(pull(dk, year_month),
@@ -796,28 +832,38 @@ for(i in 1:4){
            timestep = 1:nrow(.))  %>%
     na.omit()
   
-  ts <- mblm(seasonal_removed ~ timestep, df, repeated = TRUE) %>%
+  ts <- mblm(trend ~ timestep, df, repeated = TRUE) %>%
     predict(interval = "confidence")
   
+  sig <- ktp %>%
+    dplyr::filter(Koppen == ks[i]) %>%
+    dplyr::select(mean_frp_per_day_detection) %>%
+    pull() %>%
+    str_detect("\\*")
+  
   p_dfrpk[[i]] <- ggplot(cbind(df, ts),
-                         aes(x=date, y=seasonal_removed)) +
+                         aes(x=date, y=trend)) +
     geom_line(alpha=0.5, color = daynight_cols[1]) +
-    geom_line(aes(y=fit), lwd=1, color = daynight_cols[1]) +
-    geom_line(aes(y=upr), lty =2, color = daynight_cols[1]) +
-    geom_line(aes(y=lwr), lty =2, color = daynight_cols[1]) +
     theme_classic() +
     theme(axis.title.x = element_blank())
+  
+  if(sig){
+    p_dfrpk[[i]] <- p_dfrpk[[i]] +
+      geom_line(aes(y=fit), lwd=1, color = daynight_cols[1]) +
+      geom_line(aes(y=upr), lty =2, color = daynight_cols[1]) +
+      geom_line(aes(y=lwr), lty =2, color = daynight_cols[1])
+  }
   
   if(i == 1){p_dfrpk[[i]] <- p_dfrpk[[i]] + ylab("Daytime FRP\nper detection (MW)")}else{
     p_dfrpk[[i]] <- p_dfrpk[[i]] + theme(axis.title.y = element_blank())
   }}
 
-p_dfrp_kop_deco <- ggarrange(plotlist = p_dfrpk, nrow = 1, ncol =4)
+p_dfrp_kop_deco <- ggarrange(plotlist = p_dfrpk, nrow = 1, ncol =5, widths = c(1.25,1,1,1,1))
 
 # night afd ===============
 p_nafdk <- list()
 ts <- list()
-for(i in 1:4){
+for(i in 1:5){
   dk <- filter(long_df_k, koppen == ks[i] & dn_detect == "night")
   
   df <- dts1(pull(dk, year_month),
@@ -827,28 +873,38 @@ for(i in 1:4){
            timestep = 1:nrow(.))  %>%
     na.omit()
   
-  ts <- mblm(seasonal_removed ~ timestep, df, repeated = TRUE) %>%
+  ts <- mblm(trend ~ timestep, df, repeated = TRUE) %>%
     predict(interval = "confidence")
   
+  sig <- ktp %>%
+    dplyr::filter(Koppen == ks[i]) %>%
+    dplyr::select(night_afd_per_op_per_Mkm2) %>%
+    pull() %>%
+    str_detect("\\*")
+  
   p_nafdk[[i]] <- ggplot(cbind(df, ts),
-                         aes(x=date, y=seasonal_removed)) +
-    geom_line(alpha=0.5, color = daynight_cols[2]) +
-    geom_line(aes(y=fit), lwd=1, color = daynight_cols[2]) +
-    geom_line(aes(y=upr), lty =2, color = daynight_cols[2]) +
-    geom_line(aes(y=lwr), lty =2, color = daynight_cols[2]) +
+                         aes(x=date, y=trend)) +
+    geom_line(alpha=0.5, color = daynight_cols[2])  +
     theme_classic() +
     theme(axis.title.x = element_blank())
+  
+  if(sig){
+    p_nafdk[[i]] <-  p_nafdk[[i]] +
+      geom_line(aes(y=fit), lwd=1, color = daynight_cols[2]) +
+      geom_line(aes(y=upr), lty =2, color = daynight_cols[2]) +
+      geom_line(aes(y=lwr), lty =2, color = daynight_cols[2])
+  }
   
   if(i == 1){p_nafdk[[i]] <- p_nafdk[[i]] + ylab("Nighttime Active Fire\nDetections per Mkm2")}else{
     p_nafdk[[i]] <- p_nafdk[[i]] + theme(axis.title.y = element_blank())
   }}
 
-p_nafd_kop_deco <- ggarrange(plotlist = p_nafdk, nrow = 1, ncol =4)
+p_nafd_kop_deco <- ggarrange(plotlist = p_nafdk, nrow = 1, ncol =5, widths = c(1.25,1,1,1,1))
 
 # day afd ===============
 p_dafdk <- list()
 ts <- list()
-for(i in 1:4){
+for(i in 1:5){
   dk <- filter(long_df_k, koppen == ks[i] & dn_detect == "day")
   
   df <- dts1(pull(dk, year_month),
@@ -858,26 +914,43 @@ for(i in 1:4){
            timestep = 1:nrow(.))  %>%
     na.omit()
   
-  ts <- mblm(seasonal_removed ~ timestep, df, repeated = TRUE) %>%
+  ts <- mblm(trend ~ timestep, df, repeated = TRUE) %>%
     predict(interval = "confidence")
   
+  sig <- ktp %>%
+    dplyr::filter(Koppen == ks[i]) %>%
+    dplyr::select(day_afd_per_op_per_Mkm2) %>%
+    pull() %>%
+    str_detect("\\*")
+  
   p_dafdk[[i]] <- ggplot(cbind(df, ts),
-                         aes(x=date, y=seasonal_removed)) +
+                         aes(x=date, y=trend)) +
     geom_line(alpha=0.5, color = daynight_cols[1]) +
-    geom_line(aes(y=fit), lwd=1, color = daynight_cols[1]) +
-    geom_line(aes(y=upr), lty =2, color = daynight_cols[1]) +
-    geom_line(aes(y=lwr), lty =2, color = daynight_cols[1]) +
     theme_classic() +
     theme(axis.title.x = element_blank())
+  
+  if(sig){
+    p_dafdk[[i]] <- p_dafdk[[i]] +
+      geom_line(aes(y=fit), lwd=1, color = daynight_cols[1]) +
+      geom_line(aes(y=upr), lty =2, color = daynight_cols[1]) +
+      geom_line(aes(y=lwr), lty =2, color = daynight_cols[1])
+  }
   
   if(i == 1){p_dafdk[[i]] <- p_dafdk[[i]] + ylab("Daytime Active Fire\nDetections per Mkm2")}else{
     p_dafdk[[i]] <- p_dafdk[[i]] + theme(axis.title.y = element_blank())
   }}
 
-p_dafd_kop_deco <- ggarrange(plotlist = p_dafdk, nrow = 1, ncol =4)
+p_dafd_kop_deco <- ggarrange(plotlist = p_dafdk, nrow = 1, ncol =5, widths = c(1.25,1,1,1,1))
 
-ggsave(ggarrange(p_nf_kop_deco, p_dafd_kop_deco, 
-                 p_nafd_kop_deco, p_dfrp_kop_deco,
-                 p_nfrp_kop_deco, ncol=1, nrow=5),
-       filename = "figs/koppen_sr_trends-croplands-excluded.png",
-       width = 8, height = 10)
+# full plots =====================
+
+ggsave(ggarrange(p_nfrp_kop_deco,
+                 p_dfrp_kop_deco,  ncol=1, nrow=2),
+       filename = "figs/koppen_frp_smoothed_trends-croplands-included.png",
+       width = 10, height = 5)
+
+ggsave(ggarrange(p_nf_kop_deco,
+                 p_dafd_kop_deco, 
+                 p_nafd_kop_deco,  ncol=1, nrow=3),
+       filename = "figs/koppen_afd_smoothed_trends-croplands-included.png",
+       width = 10, height = 7)

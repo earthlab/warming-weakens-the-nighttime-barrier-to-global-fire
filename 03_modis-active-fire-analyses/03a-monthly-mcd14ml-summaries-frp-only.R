@@ -6,6 +6,7 @@ library(stringr)
 library(lubridate)
 library(tidyverse)
 library(pbapply)
+library(mblm)
 
 n_workers <- parallel::detectCores()
 
@@ -108,6 +109,37 @@ data.table::fwrite(x = monthly_afd, file = "data/out/mcd14ml_q90-frp_month-lc-ko
 
 system2(command = "aws", args = "s3 cp data/out/mcd14ml_q90-frp_month-lc-kop-daynight-summary_croplands-excluded.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/")
 
+# by cell 
+monthly_afd_cell <-
+  pblapply(X = seq_along(years), cl = cl, FUN = function(i) {
+    
+    op_this_year <- grep(x = overpass_files, pattern = years[i], value = TRUE)
+    
+    months <- regmatches(op_this_year, 
+                         regexpr(text = op_this_year,
+                                 pattern = paste0("(?<=", years[i], "-)(\\d+)"),
+                                 perl = TRUE))
+    
+    unique_months <- unique(months)
+    
+    year_afd <- data.table::fread(afd_files[i], colClasses = c(acq_time = "character"))
+    # year_afd <- year_afd[str_sub(lc,2,3) != "12",]
+    year_afd[, `:=`(acq_month = str_pad(string = lubridate::month(acq_dttme), width = 2, side = "left", pad = "0"),
+                    acq_year = as.character(lubridate::year(acq_dttme)))]
+    year_afd <- year_afd[confidence >= 10 & type == 0]
+    
+    
+    year_month_afd_gl <- year_afd[, .(q90_frp = q90(frp),
+                                      median_frp = median(frp, na.rm=TRUE)), 
+                                  
+                                  by = .(acq_month, acq_year, dn_detect, cell_id_lc, x_lc, y_lc)]
+
+    
+    return(year_month_afd_cell)
+    
+  })
+
+parallel::stopCluster(cl)
 
 # yearly agg
 
@@ -397,3 +429,35 @@ ggplot(monthly_afd %>%
        aes(x=date, y = q90_frp, color = dn_detect)) +
   geom_line() +
   facet_wrap(~lc, scales = "free") 
+
+# cell by cell analysis ========================================================
+library(mblm)
+library(vroom)
+library(tidyverse)
+
+
+# brute forcing it on an aws instance - lots of ram needed
+list.files("data/out/mcd14ml_analysis-ready", pattern = "csv", full.names = TRUE) %>%
+  vroom()%>%
+  filter(dn_detect == "night",
+         confidence >= 10, 
+         type == 0) %>%
+  dplyr::select(latitude, longitude, acq_dttme, frp, cell_id_lc, x_lc, y_lc) %>%
+  mutate(timestep = as.numeric(acq_dttme))
+
+result <- foreach(i = cell_id_lc) %dopar% {
+  d<-all_years[all_years$cell_id_lc == i,] %>%
+    filter(dn_detect == "night") %>%
+    mutate(timestep = as.numeric(acq_dttme)) 
+  
+  mod<- mblm(frp ~ timestep, data = d) 
+  s<- summary(mod)
+  df<- d[1,]
+  df$estimate <- s$coefficients[2,1]
+  df$mad <- s$coefficients[2,2]
+  df$pval <- s$coefficients[2,4]
+  
+  return(df)
+}
+
+

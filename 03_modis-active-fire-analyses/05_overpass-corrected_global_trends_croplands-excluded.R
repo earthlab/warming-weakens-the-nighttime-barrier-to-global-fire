@@ -1232,7 +1232,7 @@ ggarrange(p_k_afd, p_k_np, p_k_frp, nrow=3) +
          height =12, width =12)
 
 # night fraction with inset frp trends =========================================
- load("data/night_fraction_trends.Rda")
+ load("data/night_frp_trends.Rda")
 
 wide_df<-read_csv("in/csvs_from_michael/mcd14ml-global-trend-by-year_wide_croplands-excluded.csv") %>%
   mutate(percent_n_night = prop_n_night*100)

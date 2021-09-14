@@ -434,25 +434,28 @@ ggplot(monthly_afd %>%
 library(mblm)
 library(vroom)
 library(tidyverse)
-
+library(foreach)
+library(doParallel)
 
 # brute forcing it on an aws instance - lots of ram needed
-list.files("data/out/mcd14ml_analysis-ready", pattern = "csv", full.names = TRUE) %>%
+all_years <- list.files("data/out/mcd14ml_analysis-ready", pattern = "csv", full.names = TRUE) %>%
   vroom()%>%
   filter(dn_detect == "night",
          confidence >= 10, 
          type == 0) %>%
-  dplyr::select(latitude, longitude, acq_dttme, frp, cell_id_lc, x_lc, y_lc) %>%
-  mutate(timestep = as.numeric(acq_dttme))
+  dplyr::select(acq_dttme, frp, cell_id_lc, x_lc, y_lc) %>%
+  mutate(timestep = as.numeric(acq_dttme)) 
 
-result <- foreach(i = cell_id_lc) %dopar% {
-  d<-all_years[all_years$cell_id_lc == i,] %>%
-    filter(dn_detect == "night") %>%
-    mutate(timestep = as.numeric(acq_dttme)) 
+doParallel::registerDoParallel(detectCores()-1)
+cells <- unique(all_years$cell_id_lc)
+result <- foreach(i = cells,
+                  .combine = bind_rows) %dopar% {
+  d<-filter(all_years,cell_id_lc == i)
   
   mod<- mblm(frp ~ timestep, data = d) 
   s<- summary(mod)
-  df<- d[1,]
+  df<- d[1,] %>%
+    dplyr::select(-acq_dttme, -frp)
   df$estimate <- s$coefficients[2,1]
   df$mad <- s$coefficients[2,2]
   df$pval <- s$coefficients[2,4]
@@ -461,3 +464,6 @@ result <- foreach(i = cell_id_lc) %dopar% {
 }
 
 
+save(result,file = "data/out/parallelized-trends-by-cell.csv")
+
+system2(command = "aws", args = "s3 cp data/out/parallelized-trends-by-cell.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/")

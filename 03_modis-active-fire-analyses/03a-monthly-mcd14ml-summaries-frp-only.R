@@ -468,7 +468,7 @@ result <- foreach(i = cells,
   }else{
     df<- data.frame(cell_id_lc = i,
                     x_lc = NA,
-                    y_lc = NA,
+                    y_lc = NA
                     )
     df$estimate <- NA
     df$mad <- NA

@@ -442,11 +442,12 @@ all_years <- list.files("data/out/mcd14ml_analysis-ready", pattern = "csv", full
   vroom()%>%
   filter(dn_detect == "night",
          confidence >= 10, 
-         type == 0) %>%
+         type == 0,
+         acq_date > as.Date("2002-12-31")) %>%
   dplyr::select(acq_dttme, frp, cell_id_lc, x_lc, y_lc) %>%
   mutate(timestep = as.numeric(acq_dttme)) 
 
-doParallel::registerDoParallel(detectCores()-1)
+doParallel::registerDoParallel(detectCores()/2)
 cells <- unique(all_years$cell_id_lc)
 result <- foreach(i = cells,
                   .combine = bind_rows) %dopar% {

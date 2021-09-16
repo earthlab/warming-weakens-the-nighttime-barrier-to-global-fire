@@ -444,16 +444,19 @@ all_years <- list.files("data/out/mcd14ml_analysis-ready", pattern = "csv", full
          confidence >= 10, 
          type == 0,
          acq_date > as.Date("2002-12-31")) %>%
-  dplyr::select(acq_dttme, frp, cell_id_lc, x_lc, y_lc) %>%
-  mutate(timestep = as.numeric(acq_dttme)) 
+  dplyr::select(acq_dttme, frp, latitude, longitude, -cell_id_lc) %>%
+  mutate(timestep = as.numeric(acq_dttme),
+         latitude = round(latitude),
+         longitude = round(longitude),
+         uniqueid = paste(latitude,longitude,sep="_")) 
 
 doParallel::registerDoParallel(detectCores()/2)
-cells <- unique(all_years$cell_id_lc)
+cells <- unique(all_years$uniqueid)
 result <- foreach(i = cells,
                   .combine = bind_rows
                   ) %dopar% {
   system(paste("echo", i))
-  d<-filter(all_years,cell_id_lc == i)
+  d<-filter(all_years,uniqueid == i)
 
   if(nrow(d) > 50){
     mod<- mblm(frp ~ timestep, data = d)
@@ -467,9 +470,9 @@ result <- foreach(i = cells,
 
   return(df)
   }else{
-    df<- tibble(cell_id_lc = i,
-                    x_lc = NA,
-                    y_lc = NA)
+    df<- tibble(uniqueid = i,
+                    latitude = NA,
+                    longitude = NA)
     df$estimate <- NA
     df$mad <- NA
     df$pval <- NA
@@ -482,3 +485,10 @@ result <- foreach(i = cells,
 save(result,file = "data/out/parallelized-trends-by-cell.csv")
 
 system2(command = "aws", args = "s3 cp data/out/parallelized-trends-by-cell.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/")
+
+ggplot(result %>% 
+         filter(pval < 0.05) %>%
+         mutate(sign = ifelse(estimate >0, "positive", "negative")), 
+       aes(x=x_lc, y=y_lc, fill=sign))+
+  geom_raster() 
+

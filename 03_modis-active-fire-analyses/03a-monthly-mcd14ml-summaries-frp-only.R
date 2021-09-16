@@ -450,12 +450,13 @@ all_years <- list.files("data/out/mcd14ml_analysis-ready", pattern = "csv", full
 doParallel::registerDoParallel(detectCores()/2)
 cells <- unique(all_years$cell_id_lc)
 result <- foreach(i = cells,
-                  .combine = bind_rows) %dopar% {
+                  .combine = bind_rows
+                  ) %dopar% {
   system(paste("echo", i))
   d<-filter(all_years,cell_id_lc == i)
-  
-  if(nrow(d > 50)){
-    mod<- mblm(frp ~ timestep, data = d) 
+
+  if(nrow(d) > 50){
+    mod<- mblm(frp ~ timestep, data = d)
     s<- summary(mod)
     df<- d[1,] %>%
       dplyr::select(-acq_dttme, -frp, -timestep)
@@ -463,17 +464,16 @@ result <- foreach(i = cells,
     df$mad <- s$coefficients[2,2]
     df$pval <- s$coefficients[2,4]
     df$n <- nrow(d)
-    
+
   return(df)
   }else{
-    df<- data.frame(cell_id_lc = i,
+    df<- tibble(cell_id_lc = i,
                     x_lc = NA,
-                    y_lc = NA
-                    )
+                    y_lc = NA)
     df$estimate <- NA
     df$mad <- NA
     df$pval <- NA
-    df$n <- 0
+    df$n <- NA
     return(df)
     }
 }

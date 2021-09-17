@@ -96,6 +96,11 @@ afd_global_summary <-
   dplyr::left_join(big_trend_areas, by = "big_trend") %>% 
   dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_Mkm2))
 
+# wide version to get proportion night burning
+afd_global_summary_wide <-
+  afd_global_summary %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("year_month", "acq_year", "acq_month", "big_trend")) %>% 
+  dplyr::mutate(prop_n_night = night  / (night + day))
 
 ### begin aggregations by Koppen class ###
 
@@ -113,12 +118,27 @@ afd_koppen_summary <-
   dplyr::left_join(big_trend_areas_koppen, by = c("big_trend", "koppen")) %>% 
   dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_Mkm2)) 
   
+# wide version to get proportion nighttime burning
+afd_koppen_summary_wide <-
+  afd_koppen_summary %>% 
+  tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("koppen", "year_month", "acq_year", "acq_month", "big_trend")) %>% 
+  dplyr::mutate(prop_n_night = night  / (night + day))
+
+
 ### Write to disk and upload
 write.csv(afd_global_summary, "data/out/mcd14ml-global-trend-matched-to-climatology-by-month.csv")
 system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-climatology-by-month.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology-by-month.csv")
 
+write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv")
+
+
 write.csv(afd_koppen_summary, "data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv")
 system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv")
+
+write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv")
+
 
 afd_global_summary
 afd_koppen_summary
@@ -166,10 +186,7 @@ global_frp_gg_linear <-
 
 global_frp_gg_linear
 
-afd_global_summary_wide <-
-  afd_global_summary %>% 
-  tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("year_month", "acq_year", "acq_month", "big_trend")) %>% 
-  dplyr::mutate(prop_n_night = night  / (night + day))
+
 
 global_prop_n_gg <-
   ggplot(afd_global_summary_wide, aes(x = year_month, y = prop_n_night, lty = big_trend)) +

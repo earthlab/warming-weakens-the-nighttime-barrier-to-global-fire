@@ -109,12 +109,12 @@ ggsave(plot = partial_plot_single,
 
 bayes_plot <- predictions %>%
   left_join(thresholds) %>%
-  ggplot(aes(VPD_hPa, 1-pr_zero)) +
+  ggplot(aes(VPD_hPa / 10, 1-pr_zero)) +
   geom_path(aes(group = j), alpha = .01) +
   theme_minimal() + 
   theme(legend.position = "none", 
         panel.grid.minor = element_blank()) + 
-  xlab("Vapor pressure deficit (hPa)") + 
+  xlab("Vapor pressure deficit (kPa)") + 
   ylab("Active fire detection probability") + 
   facet_wrap(~fct_reorder(lc_name, vpd_thresh_hpa), 
              nrow = 5, labeller = label_wrap_gen()) + 

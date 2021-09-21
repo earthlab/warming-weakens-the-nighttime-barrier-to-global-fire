@@ -40,7 +40,7 @@ climatology_trend <-
 # join the climatology trend data with the pixel area and landcover data
 climatology_trend <- pixel_area[climatology_trend, on = c("x_lc", "y_lc")]
 # climatology_trend[, big_trend := ifelse(nighthours_trend >= 0, yes = "increase in flammable night hours", no = "decrease in flammable night hours")]
-climatology_trend[, big_trend := ifelse(nighthours_trend20032020 >= 0, yes = "increase in flammable night hours", no = "decrease in flammable night hours")]
+climatology_trend[, big_trend := ifelse(nighthours_trend >= 0, yes = "increase in flammable night hours", no = "decrease in flammable night hours")]
 
 # add in the koppen class and modis landcover as a new column
 climatology_trend[, `:=`(koppen = substr(x = lc, start = 1, stop = 1),
@@ -103,6 +103,21 @@ afd_global_summary_wide <-
   tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("year_month", "acq_year", "acq_month", "big_trend")) %>% 
   dplyr::mutate(prop_n_night = night  / (night + day))
 
+# Global aggregation by year
+## Global
+afd_global_annual_summary <-
+  afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), n_per_op_per_px = mean(n_per_op),
+          total_frp = sum(sum_frp),
+          n_px = .N,
+          n_op = sum(op)), 
+      by = .(acq_year, dn_detect, big_trend)] %>% 
+  dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
+                mean_frp_per_px = total_frp / n_px) %>% 
+  dplyr::filter(acq_year >= 2003 & !is.na(big_trend)) %>% 
+  dplyr::left_join(big_trend_areas, by = "big_trend") %>% 
+  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_Mkm2))
+
+
 ### begin aggregations by Koppen class ###
 
 afd_koppen_summary <-
@@ -125,6 +140,19 @@ afd_koppen_summary_wide <-
   tidyr::pivot_wider(names_from = "dn_detect", values_from = "total_n_per_op", id_cols = c("koppen", "year_month", "acq_year", "acq_month", "big_trend")) %>% 
   dplyr::mutate(prop_n_night = night  / (night + day))
 
+# koppen aggregation by year
+afd_koppen_annual_summary <-
+  afd[, .(total_n_per_op = sum(n_per_op), total_n = sum(n), n_per_op_per_px = mean(n_per_op),
+          total_frp = sum(sum_frp),
+          n_px = .N,
+          n_op = sum(op)), 
+      by = .(acq_year, koppen, dn_detect, big_trend)] %>% 
+  dplyr::mutate(mean_frp_per_detection = total_frp / total_n,
+                mean_frp_per_px = total_frp / n_px) %>% 
+  dplyr::filter(acq_year >= 2003 & !is.na(big_trend)) %>% 
+  dplyr::left_join(big_trend_areas_koppen, by = c("big_trend", "koppen")) %>% 
+  dplyr::mutate(n_per_op_per_Mkm2 = (total_n_per_op / area_Mkm2)) 
+
 
 ### Write to disk and upload
 write.csv(afd_global_summary, "data/out/mcd14ml-global-trend-matched-to-climatology-by-month.csv")
@@ -133,12 +161,18 @@ system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-
 write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv")
 system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv")
 
+write.csv(afd_global_annual_summary, "data/out/mcd14ml-global-trend-matched-to-climatology-by-year.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-climatology-by-year.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology-by-year.csv")
+
 
 write.csv(afd_koppen_summary, "data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv")
 system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv")
 
 write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv")
 system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv")
+
+write.csv(afd_koppen_annual_summary, "data/out/mcd14ml-trend-matched-to-climatology-by-year-koppen.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology-by-year-koppen.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-year-koppen.csv")
 
 ### Trends since 2003
 
@@ -148,6 +182,8 @@ system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-
 write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv")
 system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv")
 
+write.csv(afd_global_annual_summary, "data/out/mcd14ml-global-trend-matched-to-climatology2003-by-year.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-climatology2003-by-year.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology2003-by-year.csv")
 
 write.csv(afd_koppen_summary, "data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv")
 system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv")
@@ -155,18 +191,28 @@ system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climato
 write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv")
 system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv")
 
+write.csv(afd_koppen_annual_summary, "data/out/mcd14ml-trend-matched-to-climatology2003-by-year-koppen.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology2003-by-year-koppen.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-year-koppen.csv")
+
 ### How to download files
 # Trends since 1979
 system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology-by-month.csv data/out/mcd14ml-global-trend-matched-to-climatology-by-month.csv")
 system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology-by-year.csv data/out/mcd14ml-global-trend-matched-to-climatology-by-year.csv")
+
 system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv")
 system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-year-koppen.csv data/out/mcd14ml-trend-matched-to-climatology-by-year-koppen.csv")
 
 # Trends since 2003
 system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month.csv data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month.csv")
 system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology2003-by-year.csv data/out/mcd14ml-global-trend-matched-to-climatology2003-by-year.csv")
+
 system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv")
 system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-year-koppen.csv data/out/mcd14ml-trend-matched-to-climatology2003-by-year-koppen.csv")
+
 
 afd_global_summary
 afd_koppen_summary

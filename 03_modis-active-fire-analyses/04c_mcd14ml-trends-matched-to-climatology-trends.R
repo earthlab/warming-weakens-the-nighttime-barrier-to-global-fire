@@ -24,22 +24,23 @@ pixel_area <-
 # other trends are from 1979 to 2020
 climatology_trend <- 
   setNames(terra::rotate(terra::rast("data/out/climatology/nighthours_trend.nc")), "nighthours_trend") %>% 
-  c(setNames(terra::rotate(terra::rast("data/out/climatology/nighthours_trend2003.nc")), "nighthours_trend2003")) %>% 
+  c(setNames(terra::rotate(terra::rast("data/out/climatology/nighthourstrend20032020.nc")), "nighthours_trend20032020")) %>% 
   c(setNames(terra::rotate(terra::rast("data/out/climatology/nighthours_climo19912020.nc")), "nighthours")) %>% 
   c(setNames(terra::rotate(terra::rast("data/out/climatology/nights_trend.nc")), "nights_trend")) %>% 
-  c(setNames(terra::rotate(terra::rast("data/out/climatology/nights_trend2003.nc")), "nights_trend2003")) %>% 
+  # c(setNames(terra::rotate(terra::rast("data/out/climatology/nights_trend2003.nc")), "nights_trend2003")) %>%  # commented out because we don't have a refresh on this
   c(terra::rotate(terra::rast("data/out/climatology/nights_climo19912020.nc"))) %>% 
   as.data.frame(xy = TRUE) %>% 
   dplyr::rename(x_lc = "x", y_lc = "y") %>% 
   as.data.table() %>% 
   mutate(nighthours_rel_trend = nighthours_trend / nighthours,
          nights_rel_trend = nights_trend / nights,
-         nighthours_rel_trend2003 = nighthours_trend2003 / nighthours,
-         nights_rel_trend2003 = nights_trend2003 / nights)
+         nighthours_rel_trend2003 = nighthours_trend20032020 / nighthours)
+         # nights_rel_trend2003 = nights_trend2003 / nights) # we don't have a refresh on the nights trend since 2003
 
 # join the climatology trend data with the pixel area and landcover data
 climatology_trend <- pixel_area[climatology_trend, on = c("x_lc", "y_lc")]
-climatology_trend[, big_trend := ifelse(nighthours_trend >= 0, yes = "increase in flammable night hours", no = "decrease in flammable night hours")]
+# climatology_trend[, big_trend := ifelse(nighthours_trend >= 0, yes = "increase in flammable night hours", no = "decrease in flammable night hours")]
+climatology_trend[, big_trend := ifelse(nighthours_trend20032020 >= 0, yes = "increase in flammable night hours", no = "decrease in flammable night hours")]
 
 # add in the koppen class and modis landcover as a new column
 climatology_trend[, `:=`(koppen = substr(x = lc, start = 1, stop = 1),
@@ -139,6 +140,33 @@ system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climato
 write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv")
 system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv")
 
+### Trends since 2003
+
+write.csv(afd_global_summary, "data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month.csv")
+
+write.csv(afd_global_summary_wide, "data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv")
+
+
+write.csv(afd_koppen_summary, "data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv")
+
+write.csv(afd_koppen_summary_wide, "data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv")
+system2(command = "aws", args = "s3 cp data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv")
+
+### How to download files
+# Trends since 1979
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology-by-month.csv data/out/mcd14ml-global-trend-matched-to-climatology-by-month.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv data/out/mcd14ml-global-trend-matched-to-climatology-by-month_wide.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv data/out/mcd14ml-trend-matched-to-climatology-by-month-koppen_wide.csv")
+
+# Trends since 2003
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month.csv data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv data/out/mcd14ml-global-trend-matched-to-climatology2003-by-month_wide.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen.csv")
+system2(command = "aws", args = "s3 cp s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv data/out/mcd14ml-trend-matched-to-climatology2003-by-month-koppen_wide.csv")
 
 afd_global_summary
 afd_koppen_summary

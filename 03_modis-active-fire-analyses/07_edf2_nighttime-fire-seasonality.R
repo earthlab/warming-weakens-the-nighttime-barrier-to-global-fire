@@ -25,23 +25,33 @@ first_of_months <-
 afd_of_interest_lc <- data.table::fread("data/out/seasonality_afd-and-frp-by-day-of-year-landcover.csv")
 
 # Plot
+plotting_data_peak_detections <-
+  afd_of_interest_lc %>% 
+  filter(over_threshold_smooth_detections == 1) %>%
+  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_detections = NA))
+
+plotting_data_nonpeak_detections <-
+  afd_of_interest_lc %>% 
+  filter(over_threshold_smooth_detections != 1) %>%
+  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_detections = NA))
+
 gg_fire_season <-
   ggplot(afd_of_interest_lc, aes(x = doy, 
                                  y = 1e6 * smoothed_detections, 
-                                 color = dn_detect, 
-                                 alpha = over_threshold_smooth_detections)) +
-  geom_line(lwd = 1) +
-  theme_bw(base_size = 10) +
-  theme(strip.text = element_text(angle = 0, face = "bold"),
+                                 color = dn_detect)) +
+  geom_line(alpha = 0.25, size = 0.5) +
+  geom_line(data = plotting_data_peak_detections, alpha = 1, size = 0.5) +
+  theme_bw(base_size = 5) +
+  theme(strip.text = element_text(angle = 0),
         strip.background = element_rect(fill = "white"),
-        axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
+        axis.title.y = element_text(margin = unit(c(t = 0, r = 5, b = 0, l = 0), "pt")),
         axis.text = element_text(),
         axis.title.x = element_blank(),
-        legend.position = "bottom",
-        text = element_text()) +
+        text = element_text(),
+        legend.position = "bottom") +
   scale_color_manual(values = c("#b2182b", "#2166ac")) +
   # so the order is the same as the Bayes plot (based on vpd threshold)
-  facet_wrap(~reorder(landcover_split, vpd_thresh_hpa), nrow = 5) +
+  facet_wrap(~reorder(lc_name, vpd_thresh_hpa), nrow = 5, labeller = label_wrap_gen(width = 22)) +
   # so the order is descending from highest nighttime detections
   # facet_wrap(facets = vars(landcover_split), nrow = 5) +
   labs(x = "Day of year",
@@ -49,34 +59,41 @@ gg_fire_season <-
        color = "Day or night?") +
   guides(alpha = FALSE) +
   scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
-  scale_y_log10(labels = scales::comma) +
-  geom_vline(xintercept = first_of_months$doy_first) +
+  scale_y_log10(labels = scales::label_comma(accuracy = 0.1)) +
+  geom_vline(xintercept = first_of_months$doy_first, size = 0.25) +
   coord_polar() +
   scale_alpha_identity()
 
 gg_fire_season
 
-ggsave(filename = "figs/fire-seasonality-detections_daynight-landcover.png", plot = gg_fire_season, width = 183, height = 4/3 * 183, units = "mm")
-
-
 # FRP
+plotting_data_peak_frp <-
+  afd_of_interest_lc %>% 
+  filter(over_threshold_smooth_frp == 1) %>%
+  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_frp = NA))
+
+plotting_data_nonpeak_frp <-
+  afd_of_interest_lc %>% 
+  filter(over_threshold_smooth_frp != 1) %>%
+  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_frp = NA))
 
 gg_fire_season_frp <-
-  ggplot(afd_of_interest_lc, aes(x = doy, 
-                                 y = smoothed_frp, 
-                                 color = dn_detect, 
-                                 alpha = over_threshold_smooth_frp)) +
-  geom_line(lwd = 1) +
-  theme_bw(base_size = 10) +
-  theme(strip.text = element_text(angle = 0, face = "bold"),
+  ggplot(plotting_data_nonpeak_frp, aes(x = doy, 
+                                        y = smoothed_frp, 
+                                        color = dn_detect)) +
+  geom_line(alpha = 0.25, size = 0.5) +
+  geom_line(data = plotting_data_peak_frp, alpha = 1, size = 0.5) +
+  theme_bw(base_size = 5) +
+  theme(strip.text = element_text(angle = 0),
         strip.background = element_rect(fill = "white"),
-        axis.title.y = element_text(margin = unit(c(0, 5, 0, 0), "pt")),
+        axis.title.y = element_text(margin = unit(c(t = 0, r = 5, b = 0, l = 0), "pt")),
         axis.text = element_text(),
         axis.title.x = element_blank(),
+        text = element_text(),
         legend.position = "bottom") +
   scale_color_manual(values = c("#b2182b", "#2166ac")) +
   # so the order is the same as the Bayes plot (based on vpd threshold)
-  facet_wrap(~reorder(landcover_split, vpd_thresh_hpa), nrow = 5) +
+  facet_wrap(~reorder(lc_name, vpd_thresh_hpa), nrow = 5, labeller = label_wrap_gen(width = 22)) +
   # so the order is descending from highest nighttime detections
   # facet_wrap(facets = vars(landcover_split), nrow = 5) +
   labs(x = "Day of year",
@@ -84,27 +101,28 @@ gg_fire_season_frp <-
        color = "Day or night?") +
   guides(alpha = FALSE) +
   scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
-  scale_y_log10(labels = scales::comma) +
-  geom_vline(xintercept = first_of_months$doy_first) +
+  scale_y_log10(labels = scales::label_comma(accuracy = 0.1)) +
+  geom_vline(xintercept = first_of_months$doy_first, size = 0.25) +
   coord_polar() +
   scale_alpha_identity()
 
 gg_fire_season_frp
 
-ggsave(filename = "figs/fire-seasonality-frp_daynight-landcover.png", plot = gg_fire_season_frp, width = 183, height = 4/3 * 183, units = "mm")
-
 dn_detect_legend <- cowplot::get_legend(gg_fire_season)
 
 # Use only one plot
 prow <- cowplot::plot_grid(gg_fire_season + theme(legend.position = "none"), 
-                        gg_fire_season_frp + theme(legend.position = "none"), 
-                        nrow = 1, labels = c("a", "b"))
+                           gg_fire_season_frp + theme(legend.position = "none"), 
+                           nrow = 1, labels = c("a", "b"))
 
-p <- cowplot::plot_grid(prow, dn_detect_legend, ncol = 1, rel_heights = c(1, 0.1))
-p
+p <- cowplot::plot_grid(prow, dn_detect_legend, ncol = 1, rel_heights = c(1, 0.05))
 
-ggsave(filename = "figs/fire-seasonality-two-panel_afd-frp_daynight-landcover.png", plot = p, width = 183 * 2, height = 4/3 * 183, units = "mm")
-ggsave(filename = "figs/fire-seasonality-two-panel_afd-frp_daynight-landcover.pdf", plot = p, width = 183 * 2, height = 4/3 * 183, units = "mm")
+ggsave(filename = "figs/fire-seasonality-two-panel_afd-frp_daynight-landcover.pdf", plot = p, width = 183 * (11 / 8.5), height = 150, units = "mm")
+ggsave(filename = "figs/fire-seasonality-two-panel_afd-frp_daynight-landcover.png", plot = p, width = 183 * (11 / 8.5), height = 150, units = "mm")
+
+# Write individual panels to disk
+ggsave(filename = "figs/fire-seasonality-detections_daynight-landcover.png", plot = gg_fire_season, width = 183, height = 4/3 * 183, units = "mm")
+ggsave(filename = "figs/fire-seasonality-frp_daynight-landcover.pdf", plot = gg_fire_season_frp, width = 183, height = 4/3 * 183, units = "mm")
 
 
 # table summary -----------------------------------------------------------

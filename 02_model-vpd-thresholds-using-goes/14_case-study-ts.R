@@ -67,5 +67,6 @@ plot_list <-
 p <- wrap_plots(plot_list, ncol = 1)
 p
 
-ggsave("figs/case-study-ts.pdf", plot = p, width = 8, height = 6.5)
-ggsave("figs/case-study-ts.png", plot = p, width = 8, height = 6.5)
+
+ggsave("figs/case-study-ts.pdf", plot = p, width = 183, height = 125, units = "mm")
+ggsave("figs/case-study-ts.png", plot = p, width = 183, height = 125, units = "mm")

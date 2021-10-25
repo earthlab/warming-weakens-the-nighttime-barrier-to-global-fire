@@ -7,6 +7,7 @@ library(patchwork)
 library(ggtext)
 library(ggplot2)
 library(purrr)
+library(tidyr)
 
 # table of the first of each month in DOY ---------------------------------
 
@@ -36,9 +37,9 @@ plotting_data_nonpeak_detections <-
   tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_detections = NA))
 
 gg_fire_season <-
-  ggplot(afd_of_interest_lc, aes(x = doy, 
-                                 y = 1e6 * smoothed_detections, 
-                                 color = dn_detect)) +
+  ggplot(plotting_data_nonpeak_detections, aes(x = doy, 
+                                               y = 1e6 * smoothed_detections, 
+                                               color = dn_detect)) +
   geom_line(alpha = 0.25, size = 0.5) +
   geom_line(data = plotting_data_peak_detections, alpha = 1, size = 0.5) +
   theme_bw(base_size = 5) +
@@ -51,13 +52,13 @@ gg_fire_season <-
         legend.position = "bottom") +
   scale_color_manual(values = c("#b2182b", "#2166ac")) +
   # so the order is the same as the Bayes plot (based on vpd threshold)
-  facet_wrap(~reorder(lc_name, vpd_thresh_hpa), nrow = 5, labeller = label_wrap_gen(width = 22)) +
+  facet_wrap(~reorder(lc_name, vpd_thresh_hpa, na.rm = TRUE), nrow = 5, labeller = label_wrap_gen(width = 22)) +
   # so the order is descending from highest nighttime detections
   # facet_wrap(facets = vars(landcover_split), nrow = 5) +
   labs(x = "Day of year",
        y = bquote("Expected detections per day per overpass per " ~ Mkm^2),
        color = "Day or night?") +
-  guides(alpha = FALSE) +
+  guides(alpha = "none") +
   scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
   scale_y_log10(labels = scales::label_comma(accuracy = 0.1)) +
   geom_vline(xintercept = first_of_months$doy_first, size = 0.25) +
@@ -93,13 +94,13 @@ gg_fire_season_frp <-
         legend.position = "bottom") +
   scale_color_manual(values = c("#b2182b", "#2166ac")) +
   # so the order is the same as the Bayes plot (based on vpd threshold)
-  facet_wrap(~reorder(lc_name, vpd_thresh_hpa), nrow = 5, labeller = label_wrap_gen(width = 22)) +
+  facet_wrap(~reorder(lc_name, vpd_thresh_hpa, na.rm = TRUE), nrow = 5, labeller = label_wrap_gen(width = 22)) +
   # so the order is descending from highest nighttime detections
   # facet_wrap(facets = vars(landcover_split), nrow = 5) +
   labs(x = "Day of year",
        y = "Expected FRP per detection",
        color = "Day or night?") +
-  guides(alpha = FALSE) +
+  guides(alpha = "none") +
   scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
   scale_y_log10(labels = scales::label_comma(accuracy = 0.1)) +
   geom_vline(xintercept = first_of_months$doy_first, size = 0.25) +

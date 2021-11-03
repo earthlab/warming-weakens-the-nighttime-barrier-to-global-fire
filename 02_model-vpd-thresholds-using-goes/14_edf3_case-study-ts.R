@@ -15,7 +15,7 @@ last_date_df <-
   left_join(thresh) %>% 
   dplyr::select(nid, lc_name, last_date, first_date, vpd_thresh_hpa)
 
-split_events <- 
+edf3_source_data <- 
   long_pts %>%
   dplyr::select(rounded_datetime, lc_name, n, nid, vpd_kPa, event_name,
                 dn_detect) %>%
@@ -27,7 +27,13 @@ split_events <-
   mutate(name = ifelse(name == "n", "AF counts", "VPD (kPa)")) %>% 
   mutate(thresh_vpd_kPa = ifelse(name == "VPD (kPa)", 
                                  yes = vpd_thresh_hpa / 10,
-                                 no = NA)) %>% 
+                                 no = NA)) 
+
+dir.create("figs/source-data", showWarnings = FALSE)
+write.csv(x = edf3_source_data, file = "figs/source-data/edf3-source-data.csv", row.names = FALSE)
+
+split_events <-
+  edf3_source_data %>% 
   group_by(nid) %>% 
   group_split()
 
@@ -64,7 +70,7 @@ plot_list <-
     
   })
 
-p <- wrap_plots(plot_list, ncol = 1)
+p <- wrap_plots(plot_list, ncol = 1) + plot_annotation(tag_levels = "a")
 p
 
 

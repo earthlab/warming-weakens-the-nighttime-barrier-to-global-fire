@@ -66,6 +66,8 @@ plot_df <- partial_df %>%
   left_join(thresholds) %>%
   mutate(lc_name = paste0(lc_name, " (", round(vpd_thresh_hpa, 1), ')'))
 
+write.csv(x = plot_df, file = "figs/source-data/fig2-source-data.csv")
+
 ### Previous iteration, saved for posterity
 # partial_plot <- plot_df %>%
 #   ggplot(aes(VPD_hPa, mu, color = facet_label)) +
@@ -97,7 +99,6 @@ partial_plot_single <-
   geom_ribbon(aes(ymin = lo, ymax = hi, group = lc_name), 
               color = NA, alpha = 0.02) +
   theme_minimal() +
-  theme(text = element_text(family="Helvetica")) +
   labs(x = "Vapor pressure deficit (kPa)",
        y = "Active fire detection probability",
        color = "Köppen-Geiger\nclimate classifications")

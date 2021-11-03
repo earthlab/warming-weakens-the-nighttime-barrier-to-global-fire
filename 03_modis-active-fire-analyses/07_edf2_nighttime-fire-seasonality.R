@@ -25,23 +25,51 @@ first_of_months <-
 # read data describing active fire detection count per day of year across the 18 year record
 afd_of_interest_lc <- data.table::fread("data/out/seasonality_afd-and-frp-by-day-of-year-landcover.csv")
 
-# Plot
+# Collate plotting data
 plotting_data_peak_detections <-
   afd_of_interest_lc %>% 
   filter(over_threshold_smooth_detections == 1) %>%
-  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_detections = NA))
+  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_detections = NA)) %>% 
+  dplyr::mutate(peak = 1)
 
 plotting_data_nonpeak_detections <-
   afd_of_interest_lc %>% 
   filter(over_threshold_smooth_detections != 1) %>%
-  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_detections = NA))
+  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_detections = NA)) %>% 
+  dplyr::mutate(peak = 0)
 
+plotting_data_detections <- 
+  rbind(plotting_data_peak_detections, plotting_data_nonpeak_detections) %>% 
+  dplyr::mutate(type = "detections")
+
+plotting_data_peak_frp <-
+  afd_of_interest_lc %>% 
+  filter(over_threshold_smooth_frp == 1) %>%
+  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_frp = NA)) %>% 
+  dplyr::mutate(peak = 1)
+
+plotting_data_nonpeak_frp <-
+  afd_of_interest_lc %>% 
+  filter(over_threshold_smooth_frp != 1) %>%
+  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_frp = NA)) %>% 
+  dplyr::mutate(peak = 0)
+
+plotting_data_frp <- 
+  rbind(plotting_data_peak_frp, plotting_data_nonpeak_frp) %>% 
+  dplyr::mutate(type = "frp")
+
+plotting_data <- rbind(plotting_data_detections, plotting_data_frp)
+write.csv(x = plotting_data, file = "figs/source-data/edf2-source-data.csv", row.names = FALSE)
+
+# Build plots
+
+# detections first
 gg_fire_season <-
-  ggplot(plotting_data_nonpeak_detections, aes(x = doy, 
+  ggplot(filter(plotting_data, peak == 0, type == "detections"), aes(x = doy, 
                                                y = 1e6 * smoothed_detections, 
                                                color = dn_detect)) +
   geom_line(alpha = 0.25, size = 0.5) +
-  geom_line(data = plotting_data_peak_detections, alpha = 1, size = 0.5) +
+  geom_line(data = filter(plotting_data, peak == 1, type == "detections"), alpha = 1, size = 0.5) +
   theme_bw(base_size = 5) +
   theme(strip.text = element_text(angle = 0),
         strip.background = element_rect(fill = "white"),
@@ -57,7 +85,7 @@ gg_fire_season <-
   # facet_wrap(facets = vars(landcover_split), nrow = 5) +
   labs(x = "Day of year",
        y = bquote("Expected detections per day per overpass per " ~ Mkm^2),
-       color = "Day or night?") +
+       color = "") +
   guides(alpha = "none") +
   scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
   scale_y_log10(labels = scales::label_comma(accuracy = 0.1)) +
@@ -68,22 +96,13 @@ gg_fire_season <-
 gg_fire_season
 
 # FRP
-plotting_data_peak_frp <-
-  afd_of_interest_lc %>% 
-  filter(over_threshold_smooth_frp == 1) %>%
-  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_frp = NA))
-
-plotting_data_nonpeak_frp <-
-  afd_of_interest_lc %>% 
-  filter(over_threshold_smooth_frp != 1) %>%
-  tidyr::complete(doy, nesting(dn_detect, lc_name), fill = list(smoothed_frp = NA))
 
 gg_fire_season_frp <-
-  ggplot(plotting_data_nonpeak_frp, aes(x = doy, 
+  ggplot(filter(plotting_data, peak == 0, type == "frp"), aes(x = doy, 
                                         y = smoothed_frp, 
                                         color = dn_detect)) +
   geom_line(alpha = 0.25, size = 0.5) +
-  geom_line(data = plotting_data_peak_frp, alpha = 1, size = 0.5) +
+  geom_line(data = filter(plotting_data, peak == 1, type == "frp"), alpha = 1, size = 0.5) +
   theme_bw(base_size = 5) +
   theme(strip.text = element_text(angle = 0),
         strip.background = element_rect(fill = "white"),
@@ -99,7 +118,7 @@ gg_fire_season_frp <-
   # facet_wrap(facets = vars(landcover_split), nrow = 5) +
   labs(x = "Day of year",
        y = "Expected FRP per detection",
-       color = "Day or night?") +
+       color = "") +
   guides(alpha = "none") +
   scale_x_continuous(breaks = first_of_months$doy_first, labels = first_of_months$name_abbrv) +
   scale_y_log10(labels = scales::label_comma(accuracy = 0.1)) +

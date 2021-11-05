@@ -31,17 +31,17 @@ lut_lc<-c( "Evergreen Needleleaf Forests",
 names(lut_lc) <- str_pad(1:17, width = 2, side = "left",pad = "0")
 
 # color palette ================================================================
-df_colors <- read_csv("in/landcover-colors-2021.csv") %>%
+df_colors <- read_csv("data/in/landcover-colors-2021.csv") %>%
   mutate(lc_name= replace(lc_name, lc_name == "Urban and Built-up Lands",
                           "Urban and Built-up"))
 lc_cols <- pull(df_colors, color)
 names(lc_cols) <- pull(df_colors, lc_name)
 
 # reading lck in ===============================================================
-lck<-read_stars("in/lc_koppen_2010_mode.tif")
-lck_s <- read_stars("in/lck_shifted.tif")
-d_ovp <- read_stars("in/2003-2020_day_overpass-count.tif")
-n_ovp <- read_stars("in/2003-2020_night_overpass-count.tif")
+lck<-read_stars("data/in/lc_koppen_2010_mode.tif")
+lck_s <- read_stars("data/in/lck_shifted.tif")
+d_ovp <- read_stars("data/in/2003-2020_day_overpass-count.tif")
+n_ovp <- read_stars("data/in/2003-2020_night_overpass-count.tif")
 
 # calculating area =============================================================
 lck_poly<-lck_s %>% 
@@ -65,7 +65,7 @@ lck_tab <- lck_poly %>%
   na.omit
 
 # making a table with the thresholds ===========================================
-thresholds <- read_csv("in/zero-goes-af-vpd-thresholds-with-landcover-codes.csv") %>%
+thresholds <- read_csv("data/in/zero-goes-af-vpd-thresholds-with-landcover-codes.csv") %>%
   dplyr::select(lc_kop = lc_name, vpd_thresh_hpa, sd) %>%
   left_join(lck_tab %>% dplyr::select(lc_kop, area_km2)) %>%
   mutate(millions_of_km2 = area_km2/1000000) %>%
@@ -82,12 +82,12 @@ burnable_koppen <-
   summarise(area_Mkm2 = sum(millions_of_km2)) %>%
   ungroup()
 
-write.csv(burnable_koppen, "out/burnable_koppen.csv")
+write.csv(burnable_koppen, "data/out/burnable_koppen.csv")
 
 # making a 3 panel figure - lc, kop, burnable globe mask =====================
 
 
-lck_s <- terra::rast("in/lck_shifted.tif")
+lck_s <- terra::rast("data/in/lck_shifted.tif")
 lck_s[lck_s==100] <- NA
 lck_s[lck_s==200] <- NA
 lck_s[lck_s==300] <- NA

@@ -86,10 +86,10 @@ if(!file.exists("data/kop.Rda")){
 
 # putting them together
 kop_lc2010 <- (kop*100) + lc
-stars::write_stars(kop_lc2010, "lc_koppen_2010_mode.tif")
+stars::write_stars(kop_lc2010, "data/out/lc_koppen_2010_mode.tif")
 
 
-raster::raster("lc_koppen_2010_mode.tif")->xx
+raster::raster("data/out/lc_koppen_2010_mode.tif")->xx
 
 xx[xx==117] <- NA
 xx[xx==517] <- NA
@@ -98,5 +98,5 @@ xx[xx==317] <- NA
 xx[xx==217] <- NA
 plot(xx)
 
-writeRaster(xx, "data/lc_koppen_2010_mode.tif", overwrite=TRUE)
-system("aws s3 cp data/lc_koppen_2010_mode.tif s3://earthlab-amahood/night_fires/lc_koppen_2010_mode.tif")
+writeRaster(xx, "data/out/lc_koppen_2010_mode.tif", overwrite=TRUE)
+system("aws s3 cp data/out/lc_koppen_2010_mode.tif s3://earthlab-amahood/night_fires/lc_koppen_2010_mode.tif")

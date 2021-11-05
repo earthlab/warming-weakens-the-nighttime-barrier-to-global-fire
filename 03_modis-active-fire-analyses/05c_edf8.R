@@ -31,7 +31,7 @@ lut_kop<- c("Equatorial", "Arid", "Temperate", "Boreal", "Polar")
 names(lut_kop) <- c(1,2,3,4,5)
 
 # thresholds ===================================================================
-thresholds <- read_csv("in/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
+thresholds <- read_csv("data/in/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
 burnable_lcs<- pull(thresholds, lc_name)
 # functions ====================================================================
 parallel_theilsen <- function(stack_df, zero_to_na=FALSE, pb =TRUE,
@@ -118,7 +118,7 @@ long_df_k <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv")  %>%
 
 ks<- c("Global", "Boreal", "Temperate", "Arid", "Equatorial")
 
-ktp <- read_csv("out/koppen_trends_pretty_year_sr.csv") %>%
+ktp <- read_csv("data/out/koppen_trends_pretty_year_sr.csv") %>%
   mutate(Koppen = str_to_title(Koppen))
 
 # night fraction ==============
@@ -400,7 +400,7 @@ long_df_ck <- read_csv("data/out/mcd14ml-trend-matched-to-climatology-by-month-k
 ks<- c("Global", "Boreal", "Temperate", "Arid", "Equatorial")
 
 # need to create the new seasonal-adjusted trends divided by climatology
-# ktp <- read_csv("out/koppen_trends_pretty_year_sr.csv") %>%
+# ktp <- read_csv("data/out/koppen_trends_pretty_year_sr.csv") %>%
 #   mutate(Koppen = str_to_title(Koppen))
 
 # night frp ====================================================================

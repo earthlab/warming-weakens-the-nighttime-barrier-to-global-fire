@@ -23,7 +23,7 @@ getmode <- function(v) {
 
 shade_cols<-c("#f0dbdb","#c0e9f6") # first pink ("#f0dbdb"), then skyblue
 # thresholds ====================================================================
-thresholds<-read_csv("fig_3_data/updated-goes-af-vpd-thresholds.csv")
+thresholds<-read_csv("case_studies/updated-goes-af-vpd-thresholds.csv")
 # thresholds[1:20,]
 
 # landcover classification =====================================================
@@ -108,7 +108,7 @@ lut_colors_simple <- c("Forests" = "#4DAF4A",
                        "Water Bodies" = "#87CEEB"
 )
 
-df_colors <- read_csv("fig_3_data/landcover-colors-2021.csv") %>%
+df_colors <- read_csv("case_studies/landcover-colors-2021.csv") %>%
   mutate(lc_name= replace(lc_name, lc_name == "Urban and Built-up Lands",
                           "Urban and Built-up"))
 
@@ -127,14 +127,14 @@ names(lut_colors)[18] <- "Unclassified"
 daynight_cols <- c("#2166AC","#B2182B") # red is #B2182B
 daynight_cols <- c("#377EB8","#E41A1C") # red is #E41A1C
 
-snowy_lc_file <- "fig_3_data/MCD12Q1_tifs/h29v12.tif"
-tubbs_lc_file <- "fig_3_data/MCD12Q1_tifs/h08v05.tif"
+snowy_lc_file <- "case_studies/MCD12Q1_tifs/h29v12.tif"
+tubbs_lc_file <- "case_studies/MCD12Q1_tifs/h08v05.tif"
 
 modis_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 
 # snowy complex ================================================================
 
-snowy <- st_read("fig_3_data/snowy_complex.gpkg") %>%
+snowy <- st_read("case_studies/snowy_complex.gpkg") %>%
   mutate(daynight = factor(daynight, levels = c("night", "day")))%>%
   mutate(acq_date = as.Date(acq_date)) %>%
   filter(acq_date > as.Date("2019-12-28"),
@@ -142,7 +142,7 @@ snowy <- st_read("fig_3_data/snowy_complex.gpkg") %>%
 daterange_s <- snowy$acq_date %>% as.Date() %>% range()
 bbox <- st_bbox(snowy)%>% as.numeric()
 
-snowy_modis <- read_csv("fig_3_data/snowy_modis_afd.csv")%>%
+snowy_modis <- read_csv("case_studies/snowy_modis_afd.csv")%>%
   dplyr::mutate(acq_hour = as.numeric(substr(acq_time, start = 1, stop = 2)),
                 acq_min = as.numeric(substr(acq_time, start = 3, stop = 4)),
                 acq_datetime = ymd_hm(paste0(acq_date, " ", acq_hour, ":", acq_min)),
@@ -191,7 +191,7 @@ snowy_n <- snowy_modis %>%
   mutate(label_y = max(value)*0.85) %>%
   dplyr::select(datetime = acq_datetime, variable, value,lty, label_y, daynight, lty_main) 
 
-snowy_clim <- read_csv("fig_3_data/snowyave.csv",col_names = F) %>%
+snowy_clim <- read_csv("case_studies/snowyave.csv",col_names = F) %>%
   dplyr::rename(day=X1, hour=X2, value = X3)%>% 
   mutate(year = ifelse(day>300,2019,2020),
          month = ifelse(day>300,"12","01"),
@@ -243,12 +243,12 @@ stats_s <- snowy_modis %>%
   summarise(percent_dn = round((n()/nrow(.))*100,2)) %>%
   ungroup() 
 
-if(!file.exists("fig_3_data/snowy_area.Rda")){
-snowy_area <- st_read("fig_3_data/background/world_borders/ne_50m_admin_0_countries.shp") %>%
+if(!file.exists("case_studies/snowy_area.Rda")){
+snowy_area <- st_read("case_studies/background/world_borders/ne_50m_admin_0_countries.shp") %>%
   filter(NAME_EN == "Australia") %>%
   st_crop(snowy %>% st_buffer(1))
-  save(snowy_area, file = "fig_3_data/snowy_area.Rda")}else{
-    load("fig_3_data/snowy_area.Rda")
+  save(snowy_area, file = "case_studies/snowy_area.Rda")}else{
+    load("case_studies/snowy_area.Rda")
   }
 
 
@@ -257,11 +257,11 @@ bbox_s <- snowy %>%
   as.numeric()
 
 
-australia <- st_read("fig_3_data/background/world_borders/ne_50m_admin_0_countries.shp") %>%
+australia <- st_read("case_studies/background/world_borders/ne_50m_admin_0_countries.shp") %>%
   filter(NAME_EN == "Australia")
 
 
-if(!file.exists("fig_3_data/fishnet.RDS")){
+if(!file.exists("case_studies/fishnet.RDS")){
   fishnet <- st_bbox(snowy)%>% 
     st_as_sfc() %>%
     st_buffer(0.5) %>%
@@ -269,12 +269,12 @@ if(!file.exists("fig_3_data/fishnet.RDS")){
     as("Spatial")%>%
     exactextractr::exact_extract(x=raster(snowy_lc_file), y=., 
                    fun = "mode") 
-  saveRDS(fishnet, "fig_3_data/fishnet.RDS")
+  saveRDS(fishnet, "case_studies/fishnet.RDS")
   }else{
-  fishnet <- readRDS("fig_3_data/fishnet.RDS")
+  fishnet <- readRDS("case_studies/fishnet.RDS")
 }
 
-if(!file.exists("fig_3_data/fishnet_lc.RDS")){
+if(!file.exists("case_studies/fishnet_lc.RDS")){
   fishnet_lc <- st_bbox(snowy) %>%
     st_as_sfc() %>%
     st_buffer(0.5) %>%
@@ -282,9 +282,9 @@ if(!file.exists("fig_3_data/fishnet_lc.RDS")){
     st_as_sf() %>%
     mutate(lc= fishnet,
            classes = lut_lc[lc])
-  saveRDS(fishnet_lc, "fig_3_data/fishnet_lc.RDS")
+  saveRDS(fishnet_lc, "case_studies/fishnet_lc.RDS")
 }else{
-    fishnet_lc<-readRDS("fig_3_data/fishnet_lc.RDS")
+    fishnet_lc<-readRDS("case_studies/fishnet_lc.RDS")
   }
 
 
@@ -292,11 +292,11 @@ locator_box <- st_bbox(snowy_modis) %>% st_as_sfc()
 
 # tubbs ==========================================================
 
-tubbs_viirs <- st_read("fig_3_data/tubbs.gpkg") %>%
+tubbs_viirs <- st_read("case_studies/tubbs.gpkg") %>%
   mutate(daynight = factor(daynight, levels = c("night", "day")))
 daterange_t <- tubbs_viirs$acq_date %>% as.Date() %>% range()
 
-tubbs_modis <- read_csv("fig_3_data/tubbs_modis_afd.csv")%>%
+tubbs_modis <- read_csv("case_studies/tubbs_modis_afd.csv")%>%
   dplyr::mutate(acq_hour = as.numeric(substr(acq_time, start = 1, stop = 2)),
                 acq_min = as.numeric(substr(acq_time, start = 3, stop = 4)),
                 acq_datetime = ymd_hm(paste0(acq_date, " ", acq_hour, ":", acq_min)),
@@ -332,7 +332,7 @@ tubbs_modis_detections<- tubbs_modis %>%
   st_set_geometry(NULL) %>%
   filter(datetime_utc>daterange_t[1], datetime_utc < daterange_t[2])
 
-tubbs_fired_p <- st_read("fig_3_data/tubbs_fired.gpkg")
+tubbs_fired_p <- st_read("case_studies/tubbs_fired.gpkg")
 
 lct <- tubbs_viirs %>%
   mutate(lc=raster::extract(x=raster(tubbs_lc_file), y=.)) %>%
@@ -349,11 +349,11 @@ statst <- tubbs_modis %>%
   ungroup() 
 
 
-tubbs_area <- st_read("fig_3_data/CUS/CUS.shp") %>%
+tubbs_area <- st_read("case_studies/CUS/CUS.shp") %>%
   st_transform(crs=st_crs(tubbs_viirs)) %>%
   st_crop(tubbs_viirs %>% st_buffer(1))
 
-usa <- st_read("fig_3_data/CUS/CUS.shp") %>%
+usa <- st_read("case_studies/CUS/CUS.shp") %>%
   st_transform(crs=st_crs(tubbs_viirs)) %>%
   filter(STUSPS == "CA")
 
@@ -361,7 +361,7 @@ bbox <- st_bbox(tubbs_viirs)%>% as.numeric()
 
 locator_box <- st_bbox(tubbs_area) %>% st_as_sfc()
 
-if(!file.exists("fig_3_data/fishnett.RDS")){
+if(!file.exists("case_studies/fishnett.RDS")){
   fishnet_t <- st_bbox(tubbs_viirs)%>% 
     st_as_sfc() %>%
     st_buffer(0.5) %>%
@@ -370,12 +370,12 @@ if(!file.exists("fig_3_data/fishnett.RDS")){
     raster::extract(x=raster(tubbs_lc_file), y=., 
                     fun = function(x,...) getmode(x), 
                     method="simple") 
-  saveRDS(fishnet, "fig_3_data/fishnett.RDS")
+  saveRDS(fishnet, "case_studies/fishnett.RDS")
 }else{
-  fishnet_t <- readRDS("fig_3_data/fishnett.RDS")
+  fishnet_t <- readRDS("case_studies/fishnett.RDS")
 }
 
-if(!file.exists("fig_3_data/fishnet_lct.RDS")){
+if(!file.exists("case_studies/fishnet_lct.RDS")){
   fishnet_lc_t <- st_bbox(tubbs_viirs) %>%
     st_as_sfc() %>%
     st_buffer(0.5) %>%
@@ -383,20 +383,20 @@ if(!file.exists("fig_3_data/fishnet_lct.RDS")){
     st_as_sf() %>%
     mutate(lc= fishnet,
            classes = lut_lc[lc])
-  saveRDS(fishnet_lc_t, "fig_3_data/fishnet_lct.RDS")
+  saveRDS(fishnet_lc_t, "case_studies/fishnet_lct.RDS")
 }else{
-  fishnet_lc_t<-readRDS("fig_3_data/fishnet_lct.RDS")
+  fishnet_lc_t<-readRDS("case_studies/fishnet_lct.RDS")
 }
 
 
 # snowy plots ==================================================================
-if(!file.exists("fig_3_data/fishnet_snowwwy.Rda")){
+if(!file.exists("case_studies/fishnet_snowwwy.Rda")){
 lc_snowwwy <- fishnet_lc %>%
   group_by(classes) %>%
   summarise() %>%
   ungroup()
-  save(lc_snowwwy, file="fig_3_data/fishnet_snowwwy.Rda")}else{
-    load("fig_3_data/fishnet_snowwwy.Rda")}
+  save(lc_snowwwy, file="case_studies/fishnet_snowwwy.Rda")}else{
+    load("case_studies/fishnet_snowwwy.Rda")}
 
 main_plot_s <- ggplot() +
   geom_sf(data = lc_snowwwy, 
@@ -462,13 +462,13 @@ snowy_cow <- ggdraw() +
 
 # tubbs plots ==================================================================
 
-if(!file.exists("fig_3_data/lc_tubbbs.Rda")){
+if(!file.exists("case_studies/lc_tubbbs.Rda")){
   lc_tubbbs <- fishnet_lc_t %>%
     group_by(classes) %>%
     summarise() %>%
     ungroup()
-  save(lc_tubbbs, file = "fig_3_data/lc_tubbbs.Rda")
-  }else{load("fig_3_data/lc_tubbbs.Rda")}
+  save(lc_tubbbs, file = "case_studies/lc_tubbbs.Rda")
+  }else{load("case_studies/lc_tubbbs.Rda")}
 
 main_plot_t <- ggplot() +
   geom_sf(data = lc_tubbbs,
@@ -497,7 +497,7 @@ main_plot_t <- ggplot() +
         panel.background = element_rect(fill = "transparent", color = "black", size=1),
         panel.border = element_rect(color="black", fill=NA))
 
-inset_t_data <- read_csv("fig_3_data/tubbs-hourly.csv") %>% 
+inset_t_data <- read_csv("case_studies/tubbs-hourly.csv") %>% 
   mutate(lty = ifelse(name == "VPD (kPa)",2,0),
          name = str_replace_all(name, "Active Fire detections", "Detections")) %>%
   group_by(name) %>%

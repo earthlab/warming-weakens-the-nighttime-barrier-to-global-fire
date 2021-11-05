@@ -26,7 +26,7 @@ mask_col<- #DDCEBF
 dir.create("out")
 
 # thresholds ===================================================================
-thresholds <- read_csv("in/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
+thresholds <- read_csv("data/in/zero-goes-af-vpd-thresholds-with-landcover-codes.csv")
 burnable_lcs<- pull(thresholds, lc_name)
 # lc koppen setup ==============================================================
 lut_kop <- c("Equatorial", "Arid", "Temperate", "Boreal", "Polar")
@@ -57,13 +57,13 @@ template <- list.files("data/annual_adjusted_counts",
                        full.names = TRUE) %>%
   terra::rast()
 
-lck_shifted <- terra::rast("in/lc_koppen_2010_mode.tif") %>%
+lck_shifted <- terra::rast("data/in/lc_koppen_2010_mode.tif") %>%
   terra::aggregate(4, fun = "modal") %>% 
   terra::shift(dx = -179.5, dy = -0.5) %>%
   terra::crop(template) # getting rid of an extra polar row
 
 # creating the burnable land mask ==============================================
-lck_s <- terra::rast("in/lck_shifted.tif")
+lck_s <- terra::rast("data/in/lck_shifted.tif")
 lck_s[lck_s==100] <- NA
 lck_s[lck_s==200] <- NA
 lck_s[lck_s==300] <- NA
@@ -129,9 +129,7 @@ p_inset2 <- long_dfy %>%
   geom_line(lwd=1, color=daynight_cols[2]) +
   geom_smooth(method = "lm", se=F, color=daynight_cols[2], lwd=2) +
   theme_void() +
-  labs(title ="Night FRP (MW/detection)" , subtitle = ""#,
-       #caption =  "Where Flammable Hours Increased at Night"
-       )+
+  labs(title ="Night FRP (MW/detection)", subtitle = "")+
   scale_y_continuous(name = "", breaks = c(30,35,40))+ 
   theme(text = element_text(size=5),
         axis.line=element_blank(),

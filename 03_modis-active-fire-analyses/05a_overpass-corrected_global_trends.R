@@ -144,13 +144,13 @@ template <- list.files("data/annual_adjusted_counts",
                          full.names = TRUE) %>%
   terra::rast()
 
-lck_shifted <- terra::rast("in/lc_koppen_2010_mode.tif") %>%
+lck_shifted <- terra::rast("data/in/lc_koppen_2010_mode.tif") %>%
   terra::aggregate(4, fun = "modal") %>% 
   terra::shift(dx = -179.5, dy = -0.5) %>%
   terra::crop(template) # getting rid of an extra polar row
 
 # creating the burnable land mask ==============================================
-lck_s <- terra::rast("in/lck_shifted.tif")
+lck_s <- terra::rast("data/in/lck_shifted.tif")
 lck_s[lck_s==100] <- NA
 lck_s[lck_s==200] <- NA
 lck_s[lck_s==300] <- NA
@@ -327,7 +327,7 @@ dc_area <- read_stars("data/annual_adjusted_counts/day_adj_annual_counts_2003.ti
   unique()
 
 
-if(!file.exists("data/day_counts_trends.Rda")){
+if(!file.exists("data/out/day_counts_trends.Rda")){
 # 1 degree
   day_counts_df <- day_counts %>%
     as.data.frame(xy=TRUE, cells=TRUE) %>%
@@ -347,9 +347,9 @@ if(!file.exists("data/day_counts_trends.Rda")){
                                        minimum_sample = 10) %>%
     left_join(dc_area,by=c("y"="lat"))
   
-  save(day_counts_trends, file = "data/day_counts_trends.Rda")
+  save(day_counts_trends, file = "data/out/day_counts_trends.Rda")
   }else{
-  load("data/day_counts_trends.Rda")}
+  load("data/out/day_counts_trends.Rda")}
 
 p_dc<-ggplot(day_counts_trends %>% filter(p<0.05) %>% 
          mutate(Trend = ifelse(beta > 0, "Positive", "Negative"))) +
@@ -369,11 +369,10 @@ p_dc<-ggplot(day_counts_trends %>% filter(p<0.05) %>%
         legend.justification = c(0,0),
         panel.background = element_rect(color = "black", size=1))
 
-# ggsave(p_dc,filename="out/day_count_trend_1_deg_2003-2020.png")
 
 ## annual night counts =========================================================
-if(!file.exists("data/night_counts_trends.Rda")){
-  night_counts <- list.files("data/annual_adjusted_counts", 
+if(!file.exists("data/out/night_counts_trends.Rda")){
+  night_counts <- list.files("data/out/annual_adjusted_counts", 
                              pattern = "night_adj_annual_counts", 
                              full.names = TRUE) %>%
     terra::rast()
@@ -394,9 +393,9 @@ if(!file.exists("data/night_counts_trends.Rda")){
                                          minimum_sample = 10) %>%
     left_join(dc_area,by=c("y"="lat"))
   
-  save(night_counts_trends, file="data/night_counts_trends.Rda")
+  save(night_counts_trends, file="data/out/night_counts_trends.Rda")
   }else{
-  load("data/night_counts_trends.Rda")}
+  load("data/out/night_counts_trends.Rda")}
 
 p_nc<-ggplot(night_counts_trends %>% filter(p<0.05) %>% 
          mutate(Trend = ifelse(beta > 0, "Positive", "Negative"))) +
@@ -416,10 +415,9 @@ p_nc<-ggplot(night_counts_trends %>% filter(p<0.05) %>%
         legend.justification = c(0,0),
         panel.background = element_rect(color = "black", size=1))
 
-# ggsave(p_nc,"out/night_count_trend_1_deg_2003-2020.png")
 
 ## annual night fraction ===========
-if(!file.exists("data/night_fraction_trends.Rda")){
+if(!file.exists("data/out/night_fraction_trends.Rda")){
   
   night_fractions <- list.files("data/annual_adjusted_counts", pattern = "night_fraction", full.names = TRUE) %>%
     terra::rast()
@@ -440,9 +438,9 @@ if(!file.exists("data/night_fraction_trends.Rda")){
                                          minimum_sample = 10)%>%
     left_join(dc_area,by=c("y"="lat"))
   
-  save(night_fraction_trends, file= "data/night_fraction_trends.Rda")
+  save(night_fraction_trends, file= "data/out/night_fraction_trends.Rda")
 }else{
-  load("data/night_fraction_trends.Rda")}
+  load("data/out/night_fraction_trends.Rda")}
 
 p_nf<-ggplot(night_fraction_trends %>% filter(p<0.05) %>% 
          mutate(Trend = ifelse(beta > 0, "Positive", "Negative"))) +
@@ -462,7 +460,6 @@ p_nf<-ggplot(night_fraction_trends %>% filter(p<0.05) %>%
         legend.justification = c(0,0),
         panel.background = element_rect(color = "black", size=1))
 
-# ggsave(p_nf, filename="out/night_fraction_trend_1_deg_2003-2020.png")
 
 ## saving source data
 
@@ -502,7 +499,7 @@ ggsave(p_edf7_3pan, height = 9.72, width=7.7,bg="white",dpi=600, filename = "fig
 
 
 ## annual night frp mean =======================================================
-if(!file.exists("data/night_frp_trends.Rda")){
+if(!file.exists("data/out/night_frp_trends.Rda")){
   night_frp <- list.files("data/annual_adjusted_counts", 
                           pattern = "annual_night_frp_mean_MW_per_detection_", 
                           full.names = TRUE) %>%
@@ -526,9 +523,9 @@ if(!file.exists("data/night_frp_trends.Rda")){
                                       minimum_sample = 10)%>%
     left_join(dc_area,by=c("y"="lat"))
   
-  save(night_frp_trends,file= "data/night_frp_trends.Rda")
+  save(night_frp_trends,file= "data/out/night_frp_trends.Rda")
 }else{
-  load("data/night_frp_trends.Rda")
+  load("data/out/night_frp_trends.Rda")
 }
 p_frp <- ggplot(night_frp_trends %>% filter(p<0.05) %>% 
          mutate(Trend = ifelse(beta > 0, "Positive", "Negative"))) +
@@ -545,8 +542,7 @@ p_frp <- ggplot(night_frp_trends %>% filter(p<0.05) %>%
         plot.caption = element_text(hjust=0.5, size=rel(1.2)),
         legend.position = "none",
         legend.justification = c(0,0),
-        panel.background = element_rect(color = "black", size=1)) +
-  ggsave("out/night_frp_trend_1_deg_2003-2020.png")
+        panel.background = element_rect(color = "black", size=1))
 
 ## 4pan plot ======================================================
 
@@ -569,8 +565,7 @@ p_trends<-ggarrange(p_dc, p_nc, p_nf, p_frp,
 
 ggdraw()+
   draw_plot(p_trends) +
-  draw_plot(df_legend, .015,.12,.1,.1) +
-ggsave(height = 5, width=12, filename = "out/annual_4pan.png")
+  draw_plot(df_legend, .015,.12,.1,.1)
 
 # table of trends per area =====================================================
 
@@ -589,7 +584,7 @@ bind_rows("daytime_afd"=day_counts_trends,
                 nighttime_afd_Mkm2, 
                 percent_nighttime_afd_Mkm2,
                 frp_MW_per_afd=frp_MW_per_afd_Mkm2) %>%
-  write_csv("out/land_area_trends.csv")
+  write_csv("data/out/land_area_trends.csv")
 
 
 
@@ -660,7 +655,7 @@ global_row<-bind_rows(tidy(day_afd_ts)%>% mutate(variable = "day_afd_per_op_per_
   dplyr::rename(cell=term)
 
 global_row %>%
-  write_csv("out/global_trends_pretty_year.csv")
+  write_csv("data/out/global_trends_pretty_year.csv")
 
 global_row_simple <- bind_rows(tidy(day_afd_ts)%>% mutate(variable = "day_afd_per_op_per_Mkm2"), 
                       tidy(night_afd_ts)%>% mutate(variable = "night_afd_per_op_per_Mkm2"), 
@@ -676,7 +671,7 @@ global_row_simple <- bind_rows(tidy(day_afd_ts)%>% mutate(variable = "day_afd_pe
   dplyr::rename(cell=term)
 
 global_row_simple %>%
-  write_csv("out/global_trends_simple_year.csv")
+  write_csv("data/out/global_trends_simple_year.csv")
 
 # global predictions
 global_preds <- tibble("day_afd_per_ovp"=predict(day_afd_ts), 
@@ -686,7 +681,7 @@ global_preds <- tibble("day_afd_per_ovp"=predict(day_afd_ts),
   slice(c(1,216)) %>%
   mutate(date = c("January 2003", "December 2020"))
 
-write_csv(global_preds, "out/global_prediction_bookends.csv")
+write_csv(global_preds, "data/out/global_prediction_bookends.csv")
 xxxx<-predict(nf_ts, interval = "confidence")
 (xxxx[216,1]-xxxx[12,1])/18
 
@@ -782,7 +777,7 @@ names(lut_kop) <- c(1,2,3,4,5)
 
 # ts =====
 bind_rows(
-koppen_percent_n_night <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen_wide.csv") %>%
+koppen_percent_n_night <- read_csv("data/out/mcd14ml-trend-by-month-koppen_wide.csv") %>%
   mutate(value = prop_n_night*100)%>%
   dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                            time2 = min(year_month), 
@@ -791,7 +786,7 @@ koppen_percent_n_night <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-
   parallel_theilsen_lc() %>%
   mutate(variable = "percent_afd_night")
 ,
-koppen_day_afd <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.csv")%>%
+koppen_day_afd <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv")%>%
   filter(dn_detect == "day")%>%
   dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                            time2 = min(year_month), 
@@ -801,7 +796,7 @@ koppen_day_afd <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.c
   parallel_theilsen_lc() %>%
   mutate(variable = "day_afd_per_op_per_Mkm2")
 ,
-koppen_night_afd <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.csv")%>%
+koppen_night_afd <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv")%>%
   filter(dn_detect == "night")%>%
   dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                time2 = min(year_month), 
@@ -811,7 +806,7 @@ koppen_night_afd <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen
   parallel_theilsen_lc() %>%
   mutate(variable = "night_afd_per_op_per_Mkm2")
 ,
-koppen_night_frp <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.csv")%>%
+koppen_night_frp <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv")%>%
   filter(dn_detect == "night")%>%
   dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                time2 = min(year_month), 
@@ -821,7 +816,7 @@ koppen_night_frp <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen
   parallel_theilsen_lc() %>%
   mutate(variable = "mean_frp_per_night_detection")
 ,
-koppen_day_frp <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.csv")%>%
+koppen_day_frp <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv")%>%
   filter(dn_detect == "day")%>%
   dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                time2 = min(year_month), 
@@ -832,7 +827,7 @@ koppen_day_frp <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.c
   mutate(variable = "mean_frp_per_day_detection")
 )-> koppen_trends
 
-write_csv(koppen_trends, "out/koppen_trends_raw.csv")
+write_csv(koppen_trends, "data/out/koppen_trends_raw.csv")
 
 koppen_trends %>%
   dplyr::select(-n) %>%
@@ -844,7 +839,7 @@ koppen_trends %>%
   bind_rows(global_row_simple)%>%
   mutate(cell=replace(cell, cell=="time", "Global")) %>%
   dplyr::rename(Koppen = cell) %>%
-  write_csv("out/koppen_trends_pretty.csv")
+  write_csv("data/out/koppen_trends_pretty.csv")
 
 koppen_trends %>%
   dplyr::select(-n) %>%
@@ -854,21 +849,21 @@ koppen_trends %>%
   bind_rows(global_row)%>%
   mutate(cell=replace(cell, cell=="time", "Global")) %>%
   dplyr::rename(Koppen = cell) %>%
-  write_csv("out/koppen_trends_pretty_year.csv")
+  write_csv("data/out/koppen_trends_pretty_year.csv")
 
 koppen_trends %>%
   dplyr::select(-n) %>%
   mutate(sig = ifelse(p<0.05, "*", ""),
          bs = paste(round(beta,5),sig))  %>%
   pivot_wider(id_cols = cell, names_from = "variable", values_from = "bs") %>%
-  write_csv("out/koppen_trends_pretty_day.csv")
+  write_csv("data/out/koppen_trends_pretty_day.csv")
 
 
 
 
 # gam ====
 bind_rows(
-  koppen_percent_n_night <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen_wide.csv") %>%
+  koppen_percent_n_night <- read_csv("data/out/mcd14ml-trend-by-month-koppen_wide.csv") %>%
     mutate(value = prop_n_night*100)%>%
     dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                  time2 = min(year_month), 
@@ -877,7 +872,7 @@ bind_rows(
     parallel_gamm_lc() %>%
     mutate(variable = "percent_afd_night")
   ,
-  koppen_day_afd <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.csv")%>%
+  koppen_day_afd <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv")%>%
     filter(dn_detect == "day")%>%
     dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                  time2 = min(year_month), 
@@ -887,7 +882,7 @@ bind_rows(
     parallel_gamm_lc() %>%
     mutate(variable = "day_afd_per_op_per_Mkm2")
   ,
-  koppen_night_afd <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.csv")%>%
+  koppen_night_afd <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv")%>%
     filter(dn_detect == "night")%>%
     dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                  time2 = min(year_month), 
@@ -897,7 +892,7 @@ bind_rows(
     parallel_gamm_lc() %>%
     mutate(variable = "night_afd_per_op_per_Mkm2")
   ,
-  koppen_night_frp <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.csv")%>%
+  koppen_night_frp <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv")%>%
     filter(dn_detect == "night")%>%
     dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                  time2 = min(year_month), 
@@ -914,23 +909,23 @@ koppen_trends_gamm %>%
          sign = ifelse(beta>0, "+", "-"),
          sign_sig = ifelse(p<0.05, sign, sig))  %>%
   pivot_wider(id_cols = cell, names_from = "variable", values_from = "sign_sig") %>%
-  write_csv("out/koppen_trends_pretty_gamm.csv")
+  write_csv("data/out/koppen_trends_pretty_gamm.csv")
 
 koppen_trends_gamm %>%
   dplyr::select(-n) %>%
   mutate(sig = ifelse(p<0.05, "*", ""),
          bs = paste(round(beta*365.25,2),sig))  %>%
   pivot_wider(id_cols = cell, names_from = "variable", values_from = "bs") %>%
-  write_csv("out/koppen_trends_pretty_year_gamm.csv")
+  write_csv("data/out/koppen_trends_pretty_year_gamm.csv")
 ##
 
 # MONTHLY by landcover =========================================================
-lck_tab <- read_csv("in/csvs_from_michael/koppen-modis-landcover-lookup-table.csv")
+lck_tab <- read_csv("data/out/koppen-modis-landcover-lookup-table.csv")
 lut_lc <- pull(lck_tab, koppen_modis_name)
 names(lut_lc)<- pull(lck_tab, koppen_modis_code)
 
 bind_rows(
-  landcover_percent_n_night <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-landcover_wide.csv") %>%
+  landcover_percent_n_night <- read_csv("data/out/mcd14ml-trend-by-month-landcover_wide.csv") %>%
     mutate(value = prop_n_night*100)%>%
     dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                  time2 = min(year_month), 
@@ -939,7 +934,7 @@ bind_rows(
     parallel_theilsen_lc() %>%
     mutate(variable = "percent_afd_night")
   ,
-  landcover_day_afd <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-landcover.csv")%>%
+  landcover_day_afd <- read_csv("data/out/mcd14ml-trend-by-month-landcover.csv")%>%
     filter(dn_detect == "day")%>%
     dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                  time2 = min(year_month), 
@@ -949,7 +944,7 @@ bind_rows(
     parallel_theilsen_lc() %>%
     mutate(variable = "day_afd_per_op_per_Mkm2")
   ,
-  landcover_night_afd <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-landcover.csv")%>%
+  landcover_night_afd <- read_csv("data/out/mcd14ml-trend-by-month-landcover.csv")%>%
     filter(dn_detect == "night")%>%
     dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                  time2 = min(year_month), 
@@ -959,7 +954,7 @@ bind_rows(
     parallel_theilsen_lc() %>%
     mutate(variable = "night_afd_per_op_per_Mkm2")
   ,
-  landcover_night_frp <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-landcover.csv")%>%
+  landcover_night_frp <- read_csv("data/out/mcd14ml-trend-by-month-landcover.csv")%>%
     filter(dn_detect == "night")%>%
     dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                  time2 = min(year_month), 
@@ -969,7 +964,7 @@ bind_rows(
     parallel_theilsen_lc() %>%
     mutate(variable = "mean_frp_per_night_detection")
   ,
-  landcover_night_frp <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-landcover.csv")%>%
+  landcover_night_frp <- read_csv("data/out/mcd14ml-trend-by-month-landcover.csv")%>%
     filter(dn_detect == "day")%>%
     dplyr::mutate(timestep = as.numeric(difftime(time1 = year_month, 
                                                  time2 = min(year_month), 
@@ -980,7 +975,7 @@ bind_rows(
     mutate(variable = "mean_frp_per_day_detection")
 )-> landcover_trends
 
-write_csv(landcover_trends, "out/landcover_trends_raw.csv")
+write_csv(landcover_trends, "data/out/landcover_trends_raw.csv")
 
 landcover_trends %>%
   dplyr::select(-n) %>%
@@ -991,7 +986,7 @@ landcover_trends %>%
   bind_rows(global_row_simple)%>%
   mutate(cell=replace(cell, cell=="time", "Global")) %>%
   dplyr::rename(Koppen = cell) %>%
-  write_csv("out/landcover_trends_pretty.csv")
+  write_csv("data/out/landcover_trends_pretty.csv")
 
 landcover_trends %>%
   dplyr::select(-n) %>%
@@ -1001,22 +996,22 @@ landcover_trends %>%
   bind_rows(global_row)%>%
   mutate(cell=replace(cell, cell=="time", "Global")) %>%
   dplyr::rename(Koppen = cell) %>%
-  write_csv("out/landcover_trends_pretty_year.csv")
+  write_csv("data/out/landcover_trends_pretty_year.csv")
 
 landcover_trends %>%
   dplyr::select(-n) %>%
   mutate(sig = ifelse(p<0.05, "*", ""),
          bs = paste(round(beta,5),sig))  %>%
   pivot_wider(id_cols = cell, names_from = "variable", values_from = "bs") %>%
-  write_csv("out/landcover_trends_pretty_day.csv")
+  write_csv("data/out/landcover_trends_pretty_day.csv")
 
 # MONTHLY global line plots ====================================================
 
-wide_df<-read_csv("in/csvs_from_michael/mcd14ml-global-trend-by-month_wide.csv") %>%
+wide_df<-read_csv("data/out/mcd14ml-global-trend-by-month_wide.csv") %>%
   mutate(percent_n_night = prop_n_night*100)%>%
   dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
 
-long_df <- read_csv("in/csvs_from_michael/mcd14ml-global-trend-by-month.csv") 
+long_df <- read_csv("data/out/mcd14ml-global-trend-by-month.csv") 
 
 
 preds_afd <- predict(day_afd_ts, interval = "confidence") %>%
@@ -1076,18 +1071,18 @@ p_frp <- ggplot(long_df, aes(x = year_month, y = mean_frp_per_detection, color =
         axis.title.y = element_blank())
 
 ggarrange(p_afd, p_np, p_frp, nrow=3) +
-  ggsave(filename = "out/global_trends_line_plots.png",
+  ggsave(filename = "data/out/global_trends_line_plots.png",
          height =12, width = 5)
 
 # MONTHLY koppen line plots ====================================================
 
 
-wide_df_k<-read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen_wide.csv") %>%
+wide_df_k<-read_csv("data/out/mcd14ml-trend-by-month-koppen_wide.csv") %>%
   mutate(percent_n_night = prop_n_night*100)%>%
   dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days"))) %>%
   mutate(koppen = lut_kop[koppen])
 
-long_df_k <- read_csv("in/csvs_from_michael/mcd14ml-trend-by-month-koppen.csv") %>%
+long_df_k <- read_csv("data/out/mcd14ml-trend-by-month-koppen.csv") %>%
   mutate(koppen = lut_kop[koppen])
 
 p_k_afd <- ggplot(long_df_k, aes(x = year_month, y = n_per_op_per_Mkm2, color = dn_detect)) +
@@ -1121,20 +1116,18 @@ p_k_frp <- ggplot(long_df_k, aes(x = year_month, y = mean_frp_per_detection, col
         legend.title = element_blank(),
         axis.title.y = element_blank())
 
-ggarrange(p_k_afd, p_k_np, p_k_frp, nrow=3) +
-  ggsave(filename = "out/global_trends_by_koppen_line_plots.png",
-         height =12, width =12)
+ggarrange(p_k_afd, p_k_np, p_k_frp, nrow=3)
 
 # time series decomposition ====================================================
 library(forecast)
 # devtools:: install_github("brisneve/ggplottimeseries")
 library(ggplottimeseries)
 
-wide_df<-read_csv("in/csvs_from_michael/mcd14ml-global-trend-by-month_wide.csv") %>%
+wide_df<-read_csv("data/out/mcd14ml-global-trend-by-month_wide.csv") %>%
   mutate(percent_n_night = prop_n_night*100)%>%
   dplyr::mutate(time = as.numeric(difftime(time1 = year_month, time2 = min(year_month), units = "days")))
 
-long_df <- read_csv("in/csvs_from_michael/mcd14ml-global-trend-by-month.csv") 
+long_df <- read_csv("data/out/mcd14ml-global-trend-by-month.csv") 
 
 df_nf <- dts1(pull(wide_df, year_month),
               pull(wide_df, percent_n_night),
@@ -1192,8 +1185,7 @@ deco_night_frp <- ggdecompose(df_frp_q90_day)+
   ylab("Mean FRP per Nighttime Detection")
 
 
-ggarrange(deco_day_afd, deco_night_afd, deco_day_frp, deco_night_frp, deco_nf, nrow=3, ncol=2) +
-  ggsave("out/ts_decompose.png", width = 12, height =12)
+ggarrange(deco_day_afd, deco_night_afd, deco_day_frp, deco_night_frp, deco_nf, nrow=3, ncol=2) 
 
 
 
@@ -1202,9 +1194,9 @@ ggarrange(deco_day_afd, deco_night_afd, deco_day_frp, deco_night_frp, deco_nf, n
 # night fraction with inset frp trends =========================================
 load("data/night_fraction_trends.Rda")
 
-wide_df<-read_csv("in/csvs_from_michael/mcd14ml-global-trend-by-year_wide.csv") %>%
+wide_df<-read_csv("data/out/mcd14ml-global-trend-by-year_wide.csv") %>%
   mutate(percent_n_night = prop_n_night*100)
-long_df<-read_csv("in/csvs_from_michael/mcd14ml-global-trend-by-year.csv") 
+long_df<-read_csv("data/out/mcd14ml-global-trend-by-year.csv") 
 
 p_nf_single <-ggplot(night_fraction_trends %>% filter(p<0.05) %>% 
                        mutate(`Trend in Percent Night Active Fire Detections` = ifelse(beta > 0,
@@ -1273,6 +1265,5 @@ p_inset2 <- long_df %>%
 
 ggdraw() +
   draw_plot(p_nf_single) +
-  draw_plot(p_inset2, 0.02,0.2, 0.25,0.29) +
-  ggsave("out/percent_night_w_inset.png", height=8, width=20)
+  draw_plot(p_inset2, 0.02,0.2, 0.25,0.29) 
 

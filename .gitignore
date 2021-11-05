@@ -41,7 +41,11 @@ vignettes/*.pdf
 # For mac users
 .DS_Store
 
-data/
+data/raw/*
+data/MCD12Q1/*
+data/MCD12Q1_tifs/*
+data/MCD12Q1_mosaics/*
+data/out/*
 figs/
 incubator/
 tables/

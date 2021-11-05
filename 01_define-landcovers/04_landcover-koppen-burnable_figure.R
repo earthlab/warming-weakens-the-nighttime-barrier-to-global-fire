@@ -31,7 +31,7 @@ lut_lc<-c( "Evergreen Needleleaf Forests",
 names(lut_lc) <- str_pad(1:17, width = 2, side = "left",pad = "0")
 
 # color palette ================================================================
-df_colors <- read_csv("data/landcover-colors-2021.csv") %>%
+df_colors <- read_csv("in/landcover-colors-2021.csv") %>%
   mutate(lc_name= replace(lc_name, lc_name == "Urban and Built-up Lands",
                           "Urban and Built-up"))
 lc_cols <- pull(df_colors, color)
@@ -39,9 +39,9 @@ names(lc_cols) <- pull(df_colors, lc_name)
 
 # reading lck in ===============================================================
 lck<-read_stars("in/lc_koppen_2010_mode.tif")
-lck_s <- read_stars("out/aggregations_2003-2020/lck_shifted.tif")
-d_ovp <- read_stars("out/aggregations_2003-2020/2003-2020_day_overpass-count.tif")
-n_ovp <- read_stars("out/aggregations_2003-2020/2003-2020_night_overpass-count.tif")
+lck_s <- read_stars("in/lck_shifted.tif")
+d_ovp <- read_stars("in/2003-2020_day_overpass-count.tif")
+n_ovp <- read_stars("in/2003-2020_night_overpass-count.tif")
 
 # calculating area =============================================================
 lck_poly<-lck_s %>% 
@@ -65,7 +65,7 @@ lck_tab <- lck_poly %>%
   na.omit
 
 # making a table with the thresholds ===========================================
-thresholds <- read_csv("in/csvs_from_michael/zero-goes-af-vpd-thresholds-with-landcover-codes.csv") %>%
+thresholds <- read_csv("in/zero-goes-af-vpd-thresholds-with-landcover-codes.csv") %>%
   dplyr::select(lc_kop = lc_name, vpd_thresh_hpa, sd) %>%
   left_join(lck_tab %>% dplyr::select(lc_kop, area_km2)) %>%
   mutate(millions_of_km2 = area_km2/1000000) %>%
@@ -87,7 +87,7 @@ write.csv(burnable_koppen, "out/burnable_koppen.csv")
 # making a 3 panel figure - lc, kop, burnable globe mask =====================
 
 
-lck_s <- terra::rast("out/aggregations_2003-2020/lck_shifted.tif")
+lck_s <- terra::rast("in/lck_shifted.tif")
 lck_s[lck_s==100] <- NA
 lck_s[lck_s==200] <- NA
 lck_s[lck_s==300] <- NA
@@ -109,52 +109,50 @@ lck_df<-as.data.frame(lck_s, xy=TRUE)%>%
 # theme clean? or plot.border or something like that
 p1 <- ggplot(lck_df) +
   geom_raster(aes(x=x,y=y,fill=Koppen)) +
-  coord_equal() +
+  coord_equal(ylim = c(-57.625, 78.125),expand = c(0,0)) +
   theme_void()+
   labs(caption="Köppen-Geiger Climate Classification") + 
-  theme(plot.caption = element_text(hjust=0.5, size=rel(1.2)))+
+  scale_fill_brewer(palette = "Set1")+
+  theme(plot.caption = element_text(hjust=0.5, size=7))+
   # ggtitle("Koppen-Gieger Climate Classification") +
   theme(legend.justification = c(0,0),
         legend.position = c(0.05,0.2),
-        text = element_text(family="DejaVuSans"),
+        text = element_text(size=7, family="Arial"),
         legend.title = element_blank(),
         plot.title = element_text(hjust = 0.5),
-        panel.background = element_rect(color = "black", size=1)) +
-  ylim(c(-52.625, 75.125))
-
+        panel.background = element_rect(color = "black", size=1)) 
 p2 <- ggplot(lck_df%>%
                mutate(Landcover, replace(Landcover, 
                                        Landcover == "Urban and Built-up Lands",
                                        "Urban and Built-up"))) +
   geom_raster(aes(x=x,y=y,fill=Landcover))  +
-  coord_equal() +
+  coord_equal(ylim = c(-57.625, 78.125),expand = c(0,0)) +
   theme_void()+
   labs(caption="MOD12Q1 Landcover Classification") + 
-  theme(plot.caption = element_text(hjust=0.5, size=rel(1.2)))+
+  theme(plot.caption = element_text(hjust=0.5, size=7))+
   # ggtitle("MOD12Q1 Landcover Classification") +
   theme(legend.title = element_blank(),
-        text = element_text(family="DejaVuSans"),
+        text = element_text(size=7, family="Arial"),
         legend.position = "bottom",
         plot.title = element_text(hjust = 0.5),
         panel.background = element_rect(color = "black", size=1))+
-  scale_fill_manual(values = lc_cols)+
-  ylim(c(-52.625, 75.125))
+  scale_fill_manual(values = lc_cols)
+
 
 p3 <- ggplot(lck_df) +
   geom_raster(aes(x=x,y=y,fill=Burnable)) +
-  coord_equal() +
+  coord_equal(ylim = c(-57.625, 78.125),expand = c(0,0)) +
   theme_void()+
   # ggtitle("Burnable Land Area") +
   labs(caption="Burnable Land Area (> 100 fires 2017 - 2020)") + 
-  theme(plot.caption = element_text(hjust=0.5, size=rel(1.2)))+
+  theme(plot.caption = element_text(hjust=0.5, size=7))+
   theme(legend.justification = c(0,0),
         legend.position = c(0.05,0.2),
-        text = element_text(family="DejaVuSans"),
+        text = element_text(size=7, family="Arial"),
         legend.title = element_blank(),
         plot.title = element_text(hjust = 0.5),
         panel.background = element_rect(color = "black", size=1)) +
-  scale_fill_manual(values = c("firebrick", "grey"))+
-  ylim(c(-52.625, 75.125))
+  scale_fill_manual(values = c("firebrick", "grey"))
 
 leg2 <- get_legend(p2)
 
@@ -163,18 +161,26 @@ plots <- ggarrange(p1,
                    p2 + theme(legend.position = "none"), leg2, p3,
                    ncol=1, nrow=4,
                    heights = c(2,2,0.75, 2),
-                   labels = c("a", "b", "","c"),label.y = 0.95,
-                   font.label = "bold") +
-# ggarrange(plots, leg2, ncol=2, widths = c(5,2))+
-  ggsave(filename = "out/three_panel_lc_map.png", width = 8.5, height = 12)
+                   labels = c("a", "b", "","c"),label.y = 0.98,
+                   font.label = list(face="bold", size=8)) 
+
+
+# library(extrafont)
+# font_import() 
+
+
+ggsave(plots, filename = "figs/EDF1_three_panel_lc_map.jpg",
+       dpi=600,width = 6.3, height = 9, bg="white")
+
+lck_df %>%
+  dplyr::select(x,y,Landcover, Koppen, Burnable) %>%
+  write_csv("figs/source_data/edf1.csv")
 
 
 # grabbing some quick numbers for the paper
 # earth has 148940000 km2 of land surface area (from wikipedia)
-total_land_area = lck_tab %>% pull(area_km2) %>% sum #145M km2 -- close enough
-burnable_land_area = thresholds %>% pull(area_km2) %>% sum() # 90M km2
-burnable_land_area/(total_land_area) # this is where I got the 62% for the paper
+# total_land_area = lck_tab %>% pull(area_km2) %>% sum #145M km2 -- right ballpark
+# burnable_land_area = thresholds %>% pull(area_km2) %>% sum() # 90M km2
+# burnable_land_area/(total_land_area) # this is where I got the 62% for the paper
 
-# getting extended table 1 stats right here baby (michael's script has a lot of 
-# adjusting that is no longer necessary)
 

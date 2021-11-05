@@ -18,7 +18,7 @@ library(viridis)
 library(ggpubr)
 library(broom)
 
-posneg_cols <- c("Positive"="#CF6630", "Negative"="#07484D") # colours.cafe palette 582
+posneg_cols <- c("Positive"="darkorange1", "Negative"="aquamarine4") # colours.cafe palette 582
 mask_col<- #DDCEBF
 daynight_cols <- c("#B2182B","#2166AC") # red is #B2182B
 system("aws s3 sync s3://earthlab-mkoontz/warming-weakens-the-nighttime-barrier-to-global-fire/data/out data/out")
@@ -150,7 +150,7 @@ lck_shifted <- terra::rast("in/lc_koppen_2010_mode.tif") %>%
   terra::crop(template) # getting rid of an extra polar row
 
 # creating the burnable land mask ==============================================
-lck_s <- terra::rast("out/aggregations_2003-2020/lck_shifted.tif")
+lck_s <- terra::rast("in/lck_shifted.tif")
 lck_s[lck_s==100] <- NA
 lck_s[lck_s==200] <- NA
 lck_s[lck_s==300] <- NA
@@ -254,59 +254,6 @@ raw_frp_total <- list.files("data/gridded_mod14/FRP_total",
                             pattern = "_N_", full.names = TRUE) %>%
   as_tibble() %>%
   mutate(year = str_extract(value,"\\d{4}"))
-
-# monthly adjust ===============================================================
-dir.create("data/monthly_adjusted_counts")
-ym <- op_days %>%
-  filter(year>2002) %>%
-  pull(ym)
-for(y in ym){
-  print(y)
-  year_i <- str_extract(y, "\\d{4}")
-  month_i <- str_extract(y, "-\\d{2}") %>%
-    str_remove("-")
-  
-  d<-filter(mod14_day_counts, 
-            year == year_i &
-            month_n == as.numeric(month_i)) %>%
-    pull(value) %>%
-    terra::rast()
-  
-  op_d<-filter(op_days, 
-               year == year_i &
-               month == as.numeric(month_i)) %>%
-    pull(value) %>%
-    terra::rast()
-  
-  adjusted_d <-d/op_d
-  terra::writeRaster(adjusted_d, 
-                     filename = paste0("data/monthly_adjusted_counts/day_afd_per_overpass_",
-                                       year_i,"-",month_i, ".tif"),
-                     overwrite = TRUE)
-  n<-filter(mod14_night_counts, 
-            year == year_i &
-              month_n == as.numeric(month_i)) %>%
-    pull(value) %>%
-    terra::rast()
-  
-  op_n<-filter(op_nights, 
-               year == year_i &
-                 month == as.numeric(month_i)) %>%
-    pull(value) %>%
-    terra::rast()
-  
-  adjusted_n <-n/op_n
-  terra::writeRaster(adjusted_n, 
-                     filename = paste0("data/monthly_adjusted_counts/night_afd_per_overpass_",
-                                       year_i,"-",month_i, ".tif"),
-                     overwrite = TRUE)
-  nf<- adjusted_n/(adjusted_n+adjusted_d) * 100
-  terra::writeRaster(nf, 
-                     filename = paste0("data/monthly_adjusted_counts/percent_night_afd_",
-                                       year_i,"-",month_i, ".tif"),
-                     overwrite = TRUE)
-}
-
 
 # annual sum and adjust ========================================================
 dir.create("data/annual_adjusted_counts")
@@ -414,13 +361,15 @@ p_dc<-ggplot(day_counts_trends %>% filter(p<0.05) %>%
   scale_fill_manual(values = posneg_cols)+
   theme_void()+
   labs(caption="Daytime Active Fire Detections")+
-  ylim(c(-52.625, 75.125)) + 
-  theme(text = element_text(family="DejaVuSans"),
+  scale_x_continuous(expand = c(0,0))+
+  scale_y_continuous(expand = c(0,0), limits = c(-57.625, 78.125))+
+  theme(text = element_text(size=7),
         plot.caption = element_text(hjust=0.5, size=rel(1.2)),
         legend.position = "none",
         legend.justification = c(0,0),
-        panel.background = element_rect(color = "black", size=1)) +
-  ggsave("out/day_count_trend_1_deg_2003-2020.png")
+        panel.background = element_rect(color = "black", size=1))
+
+# ggsave(p_dc,filename="out/day_count_trend_1_deg_2003-2020.png")
 
 ## annual night counts =========================================================
 if(!file.exists("data/night_counts_trends.Rda")){
@@ -459,15 +408,15 @@ p_nc<-ggplot(night_counts_trends %>% filter(p<0.05) %>%
   scale_fill_manual(values = posneg_cols)+
   theme_void()+
   labs(caption="Nighttime Active Fire Detections") +
-  ylim(c(-52.625, 75.125)) + 
-  theme(text = element_text(family="DejaVuSans"),
+  scale_x_continuous(expand = c(0,0))+
+  scale_y_continuous(expand = c(0,0), limits = c(-57.625, 78.125))+
+  theme(text = element_text(size=7),
         plot.caption = element_text(hjust=0.5, size=rel(1.2)),
         legend.position = "none",
         legend.justification = c(0,0),
-        panel.background = element_rect(color = "black", size=1)) +
-  ggsave("out/night_count_trend_1_deg_2003-2020.png")
+        panel.background = element_rect(color = "black", size=1))
 
-save(night_counts_trends, file = "night_counts_trends.Rda")
+# ggsave(p_nc,"out/night_count_trend_1_deg_2003-2020.png")
 
 ## annual night fraction ===========
 if(!file.exists("data/night_fraction_trends.Rda")){
@@ -505,14 +454,53 @@ p_nf<-ggplot(night_fraction_trends %>% filter(p<0.05) %>%
   scale_fill_manual(values = posneg_cols)+
   theme_void()+
   labs(caption="Percent Nighttime Active Fire Detections")+
-  ylim(c(-52.625, 75.125)) + 
-  theme(text = element_text(family="DejaVuSans"),
+  scale_x_continuous(expand = c(0,0))+
+  scale_y_continuous(expand = c(0,0), limits = c(-57.625, 78.125))+
+  theme(text = element_text(size=7),
         plot.caption = element_text(hjust=0.5, size=rel(1.2)),
         legend.position = "none",
         legend.justification = c(0,0),
-        panel.background = element_rect(color = "black", size=1)) +
-  ggsave("out/night_fraction_trend_1_deg_2003-2020.png")
-save(night_fraction_trends,file="night_fraction_trends.Rda")
+        panel.background = element_rect(color = "black", size=1))
+
+# ggsave(p_nf, filename="out/night_fraction_trend_1_deg_2003-2020.png")
+
+## saving source data
+
+bind_rows(list(night_counts=night_counts_trends, night_fraction=night_fraction_trends, day_counts=day_counts_trends), 
+          .id="variable") %>%
+  dplyr::select(-cell) %>%
+  write_csv("figs/source_data/edf7.csv")
+
+## EXTENDED DATA FIGURE 7: 3pan plot (not much is used after this point in the final analysis) ======================================================
+legcols<-c("grey90","aquamarine4", "darkorange1")
+# legcols<- c("blue", "green", "white")
+df_legend <- tibble(x=c(1,2,3), y=c(1,2,3), 
+                    Trend=c("Negative",
+                            "Positive",
+                            "Burnable, but\nNot Significant"))  %>%
+  ggplot(aes(x=x,y=y,fill=Trend)) +
+  geom_raster() +
+  scale_fill_manual(values = legcols ) +
+  theme_transparent()+
+  theme(text=element_text(size=7))
+
+trend_leg<-get_legend(df_legend)
+
+# all together
+p_trends<-ggarrange(p_dc, p_nc, p_nf, 
+                    nrow = 3, ncol=1,
+                    labels = c("a", "b", "c"), 
+                    font.label = list(face="bold", size=8),
+                    label.y = 0.99)
+
+p_edf7_3pan<- ggdraw()+
+  draw_plot(p_trends) +
+  draw_plot(df_legend, .015,.12,.1,.1)
+
+ggsave(p_edf7_3pan, height = 9.72, width=7.7,dpi=600,bg="white", filename = "figs/EDF7_annual_3pan.jpg")
+ggsave(p_edf7_3pan, height = 9.72, width=7.7,bg="white",dpi=600, filename = "figs/EDF7_annual_3pan.pdf")
+
+
 ## annual night frp mean =======================================================
 if(!file.exists("data/night_frp_trends.Rda")){
   night_frp <- list.files("data/annual_adjusted_counts", 
@@ -553,7 +541,7 @@ p_frp <- ggplot(night_frp_trends %>% filter(p<0.05) %>%
   theme_void()+
   labs(caption="Nighttime Fire Radiative Power")+
   ylim(c(-52.625, 75.125)) + 
-  theme(text = element_text(family="DejaVuSans"),
+  theme(text = element_text(family="Arial"),
         plot.caption = element_text(hjust=0.5, size=rel(1.2)),
         legend.position = "none",
         legend.justification = c(0,0),
@@ -1230,7 +1218,7 @@ p_nf_single <-ggplot(night_fraction_trends %>% filter(p<0.05) %>%
   scale_fill_manual(values = posneg_cols)+
   theme_void()+
   ylim(c(-52.625, 75.125)) + 
-  theme(text = element_text(family="DejaVuSans"),
+  theme(text = element_text(family="Arial"),
         plot.caption = element_text(hjust=0.5, size=rel(1.2)),
         legend.position = "bottom",
         legend.text = element_text(size = 30),

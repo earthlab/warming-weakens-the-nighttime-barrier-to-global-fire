@@ -57,7 +57,7 @@ fired_files <- list.files("data/lc_splits", pattern = ".gpkg", full.names = TRUE
 out_files<- list.files("data/vpd_lc", pattern = "csv")
 # wh<- vroom("data/wh_vpd.csv")
 
-date_correcting_number <- 2 # our vpd date extraction was off, fixing here
+date_correcting_number <- 1 # our vpd date extraction was off, fixing here
 
 for(f in fired_files){
   out_fn <- str_replace(f, "lc_splits", "") %>%

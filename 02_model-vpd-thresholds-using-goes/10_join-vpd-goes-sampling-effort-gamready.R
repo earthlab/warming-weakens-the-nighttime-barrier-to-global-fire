@@ -22,7 +22,7 @@ dir.create("data/out/gamready", recursive = TRUE, showWarnings = FALSE)
 # These are pretty big file syncs (50 GB) so don't run them if you're not doing the whole
 # analysis. Instead, get the necessary vpd_lc and goes data using the `aws s3 cp` commands
 # that are commented out above. (Two separate examples; one big and one small)
-system("aws s3 sync s3://earthlab-amahood/night_fires/vpd_lc_plus_2 data/out/vpd_lc")
+system("aws s3 sync s3://earthlab-amahood/night_fires/vpd_lc_plus_1 data/out/vpd_lc")
 system("aws s3 sync s3://earthlab-amahood/night_fires/goes_counts data/goes_counts")
 system(str_c("aws s3 sync ",
              file.path("s3://earthlab-amahood","night_fires","gamready")," ",
